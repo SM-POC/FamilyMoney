@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { TrophyIcon, TrashIcon, PlusIcon, CalendarIcon, PencilSquareIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { UserFinancialProfile, Goal, GoalType } from './types';
@@ -9,7 +8,7 @@ interface FamilyGoalsViewProps {
 }
 
 export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setProfile }) => {
-  const [newGoal, setNewGoal] = useState({ name: '', target: '', current: '', type: GoalType.SAVINGS, targetDate: '' });
+  const [newGoal, setNewGoal] = useState({ name: '', target: '', current: '', monthly: '', type: GoalType.SAVINGS, targetDate: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>(null);
 
@@ -23,10 +22,11 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
       targetAmount: parseFloat(newGoal.target),
       currentAmount: parseFloat(newGoal.current) || 0,
       targetDate: newGoal.targetDate || undefined,
-      category: 'General'
+      category: 'General',
+      monthlyContribution: newGoal.monthly ? parseFloat(newGoal.monthly) : undefined
     };
     setProfile(p => ({ ...p, goals: [...(p.goals || []), goal] }));
-    setNewGoal({ name: '', target: '', current: '', type: GoalType.SAVINGS, targetDate: '' });
+    setNewGoal({ name: '', target: '', current: '', monthly: '', type: GoalType.SAVINGS, targetDate: '' });
   };
 
   const startEditing = (goal: Goal) => {
@@ -38,13 +38,17 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
     if (!editValues) return;
     setProfile(p => ({
       ...p,
-      goals: p.goals.map(g => g.id === editingId ? { ...editValues, targetAmount: parseFloat(editValues.targetAmount), currentAmount: parseFloat(editValues.currentAmount) } : g)
+      goals: p.goals.map(g => g.id === editingId ? { ...editValues, targetAmount: parseFloat(editValues.targetAmount), currentAmount: parseFloat(editValues.currentAmount), monthlyContribution: editValues.monthlyContribution === undefined || editValues.monthlyContribution === null || editValues.monthlyContribution === '' ? undefined : parseFloat(editValues.monthlyContribution) } : g)
     }));
     setEditingId(null);
     setEditValues(null);
   };
 
   const calculateMonthly = (goal: Goal) => {
+    if (goal.monthlyContribution !== undefined && goal.monthlyContribution !== null) {
+      const numeric = typeof goal.monthlyContribution === 'string' ? parseFloat(goal.monthlyContribution) : goal.monthlyContribution;
+      if (!isNaN(numeric)) return numeric;
+    }
     if (!goal.targetDate) return null;
     const target = new Date(goal.targetDate + "-01"); // Force valid start of month
     if (isNaN(target.getTime())) return null;
@@ -125,7 +129,7 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
                           <input type="number" className="w-16 bg-slate-50 rounded" value={editValues.targetAmount} onChange={e => setEditValues({...editValues, targetAmount: e.target.value})} />
                         </div>
                       ) : (
-                        <span>£{goal.currentAmount.toLocaleString()} / £{goal.targetAmount.toLocaleString()}</span>
+                        <span>稖{goal.currentAmount.toLocaleString()} / 稖{goal.targetAmount.toLocaleString()}</span>
                       )}
                     </div>
                     <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
@@ -137,9 +141,19 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
                 <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between">
                   <div>
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Monthly Contribution</p>
-                    <p className="text-xl font-black text-slate-900 tracking-tighter">
-                      {monthly !== null ? `£${monthly.toFixed(2)}` : 'N/A'}
-                    </p>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        className="text-sm font-black text-slate-900 bg-white rounded px-2 py-1"
+                        value={editValues.monthlyContribution ?? ''}
+                        onChange={e => setEditValues({ ...editValues, monthlyContribution: e.target.value })}
+                        placeholder="Auto-calc"
+                      />
+                    ) : (
+                      <p className="text-xl font-black text-slate-900 tracking-tighter">
+                        {monthly !== null ? `稖${monthly.toFixed(2)}` : 'N/A'}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Date</p>
@@ -166,8 +180,12 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <input type="number" placeholder="Target (£)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} />
-              <input type="number" placeholder="Started with (£)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.current} onChange={e => setNewGoal({...newGoal, current: e.target.value})} />
+              <input type="number" placeholder="Target (稖)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} />
+              <input type="number" placeholder="Started with (稖)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.current} onChange={e => setNewGoal({...newGoal, current: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Optional Monthly Contribution</label>
+              <input type="number" placeholder="稖 per month" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.monthly} onChange={e => setNewGoal({...newGoal, monthly: e.target.value})} />
             </div>
             <div className="space-y-2">
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2 flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> Target Date</label>

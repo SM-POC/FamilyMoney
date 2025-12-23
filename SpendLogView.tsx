@@ -22,15 +22,18 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
   const [editCategory, setEditCategory] = React.useState<string>("");
   const [scanError, setScanError] = React.useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = React.useState<string | undefined>(undefined);
+  const [selectedUserId, setSelectedUserId] = React.useState<string | undefined>(undefined);
 
   React.useEffect(() => {
     if (receiptReview) {
       const match = profile.cards.find(c => c.last4 === receiptReview.cardLast4);
       setSelectedCardId(match?.id || profile.cards[0]?.id);
+      setSelectedUserId(profile.currentUserId || profile.users[0]?.id);
     } else {
       setSelectedCardId(undefined);
+      setSelectedUserId(undefined);
     }
-  }, [receiptReview, profile.cards]);
+  }, [receiptReview, profile.cards, profile.currentUserId, profile.users]);
 
   const groupedSpendLog = React.useMemo(() => {
     // Show only discretionary/one-off spend (exclude bills/subscriptions; require explicit false)
@@ -108,6 +111,7 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
     const receiptId = `rcpt-${Date.now()}`;
     const card = profile.cards.find(c => c.id === selectedCardId) || profile.cards.find(c => c.last4 === receiptReview.cardLast4);
     const date = receiptReview.date || new Date().toISOString().slice(0, 10);
+    const ownerId = selectedUserId || profile.currentUserId || profile.users[0]?.id;
 
     const newExpenses: Expense[] = receiptReview.items.map(item => ({
       id: `exp-${Math.random().toString(36).slice(2, 9)}`,
@@ -120,7 +124,8 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
       receiptId,
       cardId: card?.id,
       cardLast4: card?.last4 || receiptReview.cardLast4 || undefined,
-      isSubscription: false
+      isSubscription: false,
+      userId: ownerId || undefined
     }));
 
     setProfile(p => ({ ...p, expenses: [...p.expenses, ...newExpenses] }));
@@ -151,7 +156,7 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Payment Card</label>
               <select
@@ -172,6 +177,19 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
                 readOnly
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm text-slate-500"
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Spender</label>
+              <select
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                value={selectedUserId || ''}
+                onChange={e => setSelectedUserId(e.target.value || undefined)}
+              >
+                <option value="">Unassigned</option>
+                {profile.users.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

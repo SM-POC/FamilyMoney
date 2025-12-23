@@ -33,63 +33,109 @@ if (dbUrl) {
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
-          role TEXT NOT NULL,
+          role TEXT CHECK (role IN ('Admin', 'Member')),
           avatar_color TEXT,
-          password TEXT
+          password TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS profile_config (
+          id TEXT PRIMARY KEY DEFAULT 'family_main',
+          luxury_budget NUMERIC(15, 2) DEFAULT 0,
+          savings_buffer NUMERIC(5, 2) DEFAULT 0,
+          strategy TEXT CHECK (strategy IN ('Avalanche (Save Interest)', 'Snowball (Smallest First)'))
+        );
+        CREATE TABLE IF NOT EXISTS cards (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          last4 VARCHAR(4) NOT NULL,
+          owner TEXT,
+          user_id TEXT REFERENCES users(id) ON DELETE SET NULL
         );
         CREATE TABLE IF NOT EXISTS debts (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
-          type TEXT,
-          balance NUMERIC,
-          interest_rate NUMERIC,
-          minimum_payment NUMERIC,
-          can_overpay BOOLEAN,
-          overpayment_penalty NUMERIC
+          type TEXT NOT NULL,
+          balance NUMERIC(15, 2) NOT NULL,
+          interest_rate NUMERIC(5, 2) NOT NULL,
+          minimum_payment NUMERIC(15, 2) NOT NULL,
+          can_overpay BOOLEAN DEFAULT TRUE,
+          overpayment_penalty NUMERIC(15, 2) DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS expenses (
           id TEXT PRIMARY KEY,
           category TEXT,
           description TEXT,
-          amount NUMERIC,
-          is_recurring BOOLEAN,
-          is_subscription BOOLEAN,
-          contract_end_date TEXT
+          amount NUMERIC(15, 2) NOT NULL,
+          is_recurring BOOLEAN DEFAULT FALSE,
+          date DATE,
+          merchant TEXT,
+          receipt_id TEXT,
+          card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
+          card_last4 VARCHAR(4),
+          is_subscription BOOLEAN DEFAULT FALSE,
+          contract_end_date DATE,
+          user_id TEXT REFERENCES users(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS income (
           id TEXT PRIMARY KEY,
-          source TEXT,
-          amount NUMERIC
+          source TEXT NOT NULL,
+          amount NUMERIC(15, 2) NOT NULL,
+          user_id TEXT REFERENCES users(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS goals (
           id TEXT PRIMARY KEY,
-          name TEXT,
-          type TEXT,
-          target_amount NUMERIC,
-          current_amount NUMERIC,
-          target_date TEXT
-        );
-        CREATE TABLE IF NOT EXISTS cards (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          last4 TEXT,
-          owner TEXT
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          target_amount NUMERIC(15, 2) NOT NULL,
+          current_amount NUMERIC(15, 2) NOT NULL,
+          target_date TEXT,
+          category TEXT,
+          monthly_contribution NUMERIC(15, 2)
         );
         CREATE TABLE IF NOT EXISTS lent_money (
           id TEXT PRIMARY KEY,
-          recipient TEXT,
+          recipient TEXT NOT NULL,
           purpose TEXT,
-          total_amount NUMERIC,
-          remaining_balance NUMERIC,
-          default_repayment NUMERIC
+          total_amount NUMERIC(15, 2) NOT NULL,
+          remaining_balance NUMERIC(15, 2) NOT NULL,
+          default_repayment NUMERIC(15, 2) NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS profile_config (
-          id SERIAL PRIMARY KEY,
-          luxury_budget NUMERIC,
-          savings_buffer NUMERIC,
-          strategy TEXT
+        CREATE TABLE IF NOT EXISTS special_events (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          month INTEGER CHECK (month >= 0 AND month <= 11),
+          budget NUMERIC(15, 2) NOT NULL
         );
       `);
+      const alterStatements = [
+        "ALTER TABLE profile_config ALTER COLUMN id TYPE TEXT USING id::TEXT",
+        "ALTER TABLE profile_config ALTER COLUMN id SET DEFAULT 'family_main'",
+        "ALTER TABLE profile_config ALTER COLUMN luxury_budget SET DEFAULT 0",
+        "ALTER TABLE profile_config ALTER COLUMN savings_buffer SET DEFAULT 0",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS strategy TEXT",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS savings_buffer NUMERIC(5, 2)",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS luxury_budget NUMERIC(15, 2)",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS id TEXT",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS date DATE",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS merchant TEXT",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receipt_id TEXT",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS card_id TEXT",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4)",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_subscription BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS contract_end_date DATE",
+        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE income ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE cards ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE goals ADD COLUMN IF NOT EXISTS category TEXT",
+        "ALTER TABLE goals ADD COLUMN IF NOT EXISTS monthly_contribution NUMERIC(15, 2)"
+      ];
+
+      for (const stmt of alterStatements) {
+        try {
+          await client.query(stmt);
+        } catch (err) {
+          console.warn('[MoneyMate] Schema alignment skip:', err.message);
+        }
+      }
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
       console.error('[MoneyMate] Handshake Failed:', err.message);
@@ -134,6 +180,7 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
     const goals = await pool.query('SELECT * FROM goals');
     const cards = await pool.query('SELECT * FROM cards');
     const lent = await pool.query('SELECT * FROM lent_money');
+    const events = await pool.query('SELECT * FROM special_events');
     const config = await pool.query('SELECT * FROM profile_config LIMIT 1');
 
     res.json({
@@ -160,13 +207,19 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
         contractEndDate: e.contract_end_date || null,
         userId: e.user_id || null
       })),
-      income: income.rows.map(i => ({ ...i, amount: parseFloat(i.amount) })),
-      goals: goals.rows.map(g => ({ ...g, targetAmount: parseFloat(g.target_amount), currentAmount: parseFloat(g.current_amount) })),
-      cards: cards.rows,
+      income: income.rows.map(i => ({ ...i, amount: parseFloat(i.amount), userId: i.user_id || null })),
+      goals: goals.rows.map(g => ({ 
+        ...g, 
+        targetAmount: parseFloat(g.target_amount), 
+        currentAmount: parseFloat(g.current_amount),
+        monthlyContribution: g.monthly_contribution ? parseFloat(g.monthly_contribution) : null
+      })),
+      cards: cards.rows.map(c => ({ ...c, userId: c.user_id || null })),
       lentMoney: lent.rows.map(l => ({ ...l, totalAmount: parseFloat(l.total_amount), remainingBalance: parseFloat(l.remaining_balance), defaultRepayment: parseFloat(l.default_repayment) })),
       luxuryBudget: parseFloat(config.rows[0]?.luxury_budget || 0),
       savingsBuffer: parseFloat(config.rows[0]?.savings_buffer || 0),
       strategy: config.rows[0]?.strategy || 'Avalanche (Save Interest)',
+      specialEvents: events.rows.map(ev => ({ ...ev, budget: ev.budget === null || ev.budget === undefined ? 0 : parseFloat(ev.budget) })),
       paymentLogs: []
     });
   } catch (err) {
@@ -180,7 +233,7 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   try {
     await client.query('BEGIN');
     const p = req.body;
-    await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM profile_config;');
+    await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM special_events; DELETE FROM profile_config;');
 
     for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color, password) VALUES ($1, $2, $3, $4, $5)', [u.id, u.name, u.role, u.avatarColor, u.password || null]);
     for (const d of (p.debts || [])) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
@@ -202,11 +255,12 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
         e.userId || null
       ]
     );
-    for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
-    for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
-    for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
+    for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount, user_id) VALUES ($1, $2, $3, $4)', [i.id, i.source, i.amount, i.userId || null]);
+    for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date, category, monthly_contribution) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null, g.category || null, g.monthlyContribution || null]);
+    for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner, user_id) VALUES ($1, $2, $3, $4, $5)', [c.id, c.name, c.last4, c.owner || null, c.userId || null]);
     for (const l of (p.lentMoney || [])) await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
-    await client.query('INSERT INTO profile_config (luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3)', [p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)']);
+    for (const ev of (p.specialEvents || [])) await client.query('INSERT INTO special_events (id, name, month, budget) VALUES ($1, $2, $3, $4)', [ev.id, ev.name, ev.month, ev.budget]);
+    await client.query('INSERT INTO profile_config (id, luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3, $4)', ['family_main', p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)']);
 
     await client.query('COMMIT');
     res.json({ success: true });

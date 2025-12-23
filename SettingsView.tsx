@@ -29,6 +29,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, setProfile 
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'loading' | 'warning', msg: string } | null>(null);
   const [dbStatus, setDbStatus] = useState<'connected' | 'not_configured' | 'offline'>('offline');
   const [showSchema, setShowSchema] = useState(false);
+  const [newEvent, setNewEvent] = useState({ name: '', month: '0', budget: '' });
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const isSelfHosted = window.location.hostname !== 'localhost';
 
@@ -99,6 +101,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, setProfile 
     } catch (e) {
       setStatus({ type: 'error', msg: 'Pull Failed. Check server logs.' });
     }
+  };
+
+  const handleAddEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEvent.name || !newEvent.budget) return;
+    const event = { id: Math.random().toString(36).slice(2, 9), name: newEvent.name, month: parseInt(newEvent.month, 10), budget: parseFloat(newEvent.budget) };
+    setProfile(p => ({ ...p, specialEvents: [...(p.specialEvents || []), event] }));
+    setNewEvent({ name: '', month: '0', budget: '' });
+  };
+
+  const removeEvent = (id: string) => {
+    setProfile(p => ({ ...p, specialEvents: (p.specialEvents || []).filter(ev => ev.id !== id) }));
   };
 
   return (
@@ -181,6 +195,64 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, setProfile 
                 Apply & Test Connection
               </button>
             </div>
+          </div>
+
+          <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center">
+                  <DocumentTextIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Special Event Budgets</h3>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Plan for birthdays, holidays, and school terms.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {(profile.specialEvents || []).length === 0 && (
+                <p className="text-sm text-slate-400">No events logged. Add budgets to smooth seasonal spend.</p>
+              )}
+              {(profile.specialEvents || []).map(ev => (
+                <div key={ev.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="font-black text-slate-900">{ev.name}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{monthNames[ev.month] || 'Month'} • 稖{ev.budget.toFixed(2)}</p>
+                  </div>
+                  <button onClick={() => removeEvent(ev.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                    <XCircleIcon className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <form onSubmit={handleAddEvent} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+              <input
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm md:col-span-2"
+                placeholder="Event name (e.g. Christmas)"
+                value={newEvent.name}
+                onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
+              />
+              <select
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                value={newEvent.month}
+                onChange={e => setNewEvent({ ...newEvent, month: e.target.value })}
+              >
+                {monthNames.map((m, idx) => <option key={m} value={idx}>{m}</option>)}
+              </select>
+              <input
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                placeholder="Budget (稖)"
+                type="number"
+                step="0.01"
+                value={newEvent.budget}
+                onChange={e => setNewEvent({ ...newEvent, budget: e.target.value })}
+              />
+              <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 transition-all md:col-span-4">
+                Save Event Budget
+              </button>
+            </form>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
