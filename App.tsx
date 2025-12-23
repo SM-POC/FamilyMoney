@@ -43,6 +43,7 @@ import { OutgoingsHubView } from './OutgoingsHubView';
 import { DebtManagerView } from './DebtManagerView';
 import { SpendLogView } from './SpendLogView';
 import { FutureView } from './FutureView';
+import { PlanView } from './PlanView';
 import { PaymentTrackerView } from './PaymentTrackerView';
 import { IncomeHubView } from './IncomeHubView';
 import { MoneyLentView } from './MoneyLentView';
@@ -75,7 +76,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const profileRef = useRef<UserFinancialProfile>(EMPTY_PROFILE);
   const [receiptReview, setReceiptReview] = useState<ReceiptReviewState | null>(null);
@@ -371,6 +372,7 @@ const App: React.FC = () => {
         
         <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
           <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<ChartBarIcon className="w-5 h-5" />} label="Dashboard" />
+          <NavItem active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<SparklesIcon className="w-5 h-5" />} label="Plan" />
           <NavItem active={activeTab === 'payment-tracker'} onClick={() => setActiveTab('payment-tracker')} icon={<ArrowPathRoundedSquareIcon className="w-5 h-5" />} label="Live Tracker" />
           <NavItem active={activeTab === 'spend-log'} onClick={() => setActiveTab('spend-log')} icon={<ClockIcon className="w-5 h-5" />} label="Spend Log" />
           <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Future View" />
@@ -408,6 +410,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
         {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} />}
+        {activeTab === 'plan' && <PlanView profile={profile} setProfile={setProfile} schedule={schedule} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'spend-log' && (
