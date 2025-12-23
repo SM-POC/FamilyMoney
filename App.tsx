@@ -180,7 +180,7 @@ const App: React.FC = () => {
 
   const handlePasswordSubmit = () => {
     if (!selectedLoginUser) return;
-    const storedPassword = (selectedLoginUser.password || selectedLoginUser.pin || '').trim();
+    const storedPassword = (selectedLoginUser.password || '').trim();
     if (!storedPassword) {
       setLoginError('This account does not have a password yet. Ask an admin to set one.');
       return;

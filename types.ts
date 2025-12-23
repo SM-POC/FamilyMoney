@@ -25,7 +25,6 @@ export interface FamilyUser {
   role: 'Admin' | 'Member';
   avatarColor: string;
   password?: string;
-  pin?: string; // legacy compatibility for older syncs
 }
 
 export interface SyncConfig {

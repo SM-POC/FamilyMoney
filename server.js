@@ -35,8 +35,7 @@ if (dbUrl) {
           name TEXT NOT NULL,
           role TEXT NOT NULL,
           avatar_color TEXT,
-          password TEXT,
-          pin TEXT
+          password TEXT
         );
         CREATE TABLE IF NOT EXISTS debts (
           id TEXT PRIMARY KEY,
@@ -91,11 +90,6 @@ if (dbUrl) {
           strategy TEXT
         );
       `);
-      await client.query(`
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS pin TEXT;
-        UPDATE users SET password = pin WHERE password IS NULL AND pin IS NOT NULL;
-      `);
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
       console.error('[MoneyMate] Handshake Failed:', err.message);
@@ -133,7 +127,7 @@ app.get('/api/health', async (req, res) => {
 
 app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
   try {
-    const users = await pool.query('SELECT id, name, role, avatar_color, COALESCE(password, pin) AS password FROM users');
+    const users = await pool.query('SELECT id, name, role, avatar_color, password FROM users');
     const debts = await pool.query('SELECT * FROM debts');
     const expenses = await pool.query('SELECT * FROM expenses');
     const income = await pool.query('SELECT * FROM income');

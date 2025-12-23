@@ -3,7 +3,8 @@ CREATE TABLE users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     role TEXT CHECK (role IN ('Admin', 'Member')),
-    avatar_color TEXT
+    avatar_color TEXT,
+    password TEXT NOT NULL
 );
 
 -- Global Family Settings (One row per family/profile)
