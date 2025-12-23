@@ -20,7 +20,10 @@ export const syncPush = async (endpoint: string, apiKey: string, data: UserFinan
     },
     body: JSON.stringify(data)
   });
-  if (!response.ok) throw new Error('Push failed');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Push failed with status ${response.status}`);
+  }
   return await response.json();
 };
 
@@ -32,7 +35,10 @@ export const syncPull = async (endpoint: string, apiKey: string) => {
       'Authorization': `Bearer ${apiKey}`
     }
   });
-  if (!response.ok) throw new Error('Pull failed');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Pull failed with status ${response.status}`);
+  }
   return await response.json();
 };
 

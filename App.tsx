@@ -73,6 +73,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<UserFinancialProfile>(EMPTY_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [advice, setAdvice] = useState<string>("");
@@ -92,6 +93,7 @@ const App: React.FC = () => {
   const refreshFromDb = useCallback(async () => {
     setIsLoading(true);
     setConnectionStatus('loading');
+    setConnectionError(null);
     try {
       console.log("[MoneyMate] Fetching database users...");
       const remote = await syncPull('', ''); 
@@ -99,9 +101,10 @@ const App: React.FC = () => {
         setProfile(p => ({ ...p, ...remote }));
         setConnectionStatus('success');
       }
-    } catch (e) { 
-      console.error("[MoneyMate] Could not connect to database for login.", e); 
+    } catch (e: any) { 
+      console.error("[MoneyMate] Database access error:", e.message); 
       setConnectionStatus('failed');
+      setConnectionError(e.message);
     } finally {
       setIsLoading(false);
     }
@@ -120,8 +123,8 @@ const App: React.FC = () => {
       try {
         await syncPush('', '', profile);
         console.log("[MoneyMate] Entries synced to DB.");
-      } catch (e) { 
-        console.error("[MoneyMate] Auto-sync failed:", e); 
+      } catch (e: any) { 
+        console.error("[MoneyMate] Auto-sync failed:", e.message); 
       } finally { 
         setIsSyncing(false); 
       }
@@ -201,7 +204,6 @@ const App: React.FC = () => {
             <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">MoneyMate</h1>
             <p className="text-slate-400 font-medium tracking-wide">Family Financial Planner</p>
             
-            {/* Status Badges */}
             <div className="flex justify-center gap-2 mt-4">
               {connectionStatus === 'success' && (
                 <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-2">
@@ -239,8 +241,9 @@ const App: React.FC = () => {
                   <ExclamationCircleIcon className="w-10 h-10" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-white uppercase tracking-widest">PostgreSQL Failed</h2>
-                  <p className="text-slate-400 text-[10px] mt-2 italic leading-relaxed px-4">The application could not establish a secure handshake with the database. Please verify your environment variables.</p>
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest">Access Denied</h2>
+                  <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest mb-2">Error: {connectionError || "Unknown connection failure"}</p>
+                  <p className="text-slate-400 text-[10px] mt-2 italic leading-relaxed px-4">The application could not establish a handshake with the database. Please verify your environment variables or local network status.</p>
                 </div>
                 <button 
                   onClick={refreshFromDb}

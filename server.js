@@ -20,14 +20,14 @@ if (dbUrl) {
   console.log('[MoneyMate] PostgreSQL database URL detected.');
   pool = new Pool({
     connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000
   });
 
-  // Initialize Schema
   const initDb = async () => {
-    const client = await pool.connect();
+    let client;
     try {
-      console.log('[MoneyMate] Initializing database schema...');
+      client = await pool.connect();
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
@@ -91,77 +91,29 @@ if (dbUrl) {
       `);
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
-      console.error('[MoneyMate] Initialization Error:', err);
+      console.error('[MoneyMate] Init Error:', err.message);
     } finally {
-      client.release();
+      if (client) client.release();
     }
   };
   initDb();
 }
 
-/**
- * JIT Transpiler Middleware
- * Corrects "Failed to load index.tsx" by ensuring strict JS MIME types and handling errors gracefully.
- */
-app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res) => {
-  const cleanPath = req.path.split('?')[0];
-  const relPath = cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath;
-  const filePath = path.join(process.cwd(), relPath);
-
-  // Set headers early to satisfy browser ES Module requirements
-  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send(`console.error("MoneyMate: File not found - ${relPath}");`);
-  }
-
-  try {
-    const code = fs.readFileSync(filePath, 'utf8');
-    const result = await esbuild.transform(code, {
-      loader: filePath.endsWith('.tsx') ? 'tsx' : 'ts',
-      format: 'esm',
-      target: 'es2020',
-      sourcemap: 'inline',
-      minify: false,
-      define: {
-        'process.env.API_KEY': JSON.stringify(geminiKey),
-        'process.env.NODE_ENV': '"production"'
-      }
-    });
-
-    let transformedCode = result.code.replace(
-      /from\s+['"](\.\.?\/[^'"]+)['"]/g,
-      (match, p1) => {
-        if (p1.match(/\.(tsx|ts|js|css)$/)) return match;
-        const dir = path.dirname(filePath);
-        if (fs.existsSync(path.join(dir, p1 + '.tsx'))) return `from "${p1}.tsx"`;
-        if (fs.existsSync(path.join(dir, p1 + '.ts'))) return `from "${p1}.ts"`;
-        return match;
-      }
-    );
-
-    res.send(transformedCode);
-  } catch (err) {
-    console.error(`[MoneyMate] Transpilation Error [${relPath}]:`, err);
-    res.status(500).send(`console.error("MoneyMate Transpilation failed for ${relPath}: ${err.message.replace(/"/g, '\\"')}");`);
-  }
-});
-
 const validateAuth = (req, res, next) => {
   if (!authKey) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${authKey}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized Access Token Required' });
   }
   next();
 };
 
 const checkDb = (req, res, next) => {
-  if (!pool) return res.status(503).json({ error: 'Database not configured' });
+  if (!pool) return res.status(503).json({ error: 'Database not configured.' });
   next();
 };
 
+// --- API ROUTES FIRST ---
 app.get('/api/health', async (req, res) => {
   if (!pool) return res.json({ status: 'warning', database: 'not_configured' });
   try {
@@ -197,6 +149,7 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
       paymentLogs: []
     });
   } catch (err) {
+    console.error('[MoneyMate] Pull Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -221,15 +174,55 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[MoneyMate] Push Failed:', err);
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
   }
 });
 
+// --- JIT TRANSPILER ---
+app.get(/\.(tsx|ts)$/, async (req, res) => {
+  const filePath = path.join(process.cwd(), req.path);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  try {
+    const code = fs.readFileSync(filePath, 'utf8');
+    const result = await esbuild.transform(code, {
+      loader: filePath.endsWith('.tsx') ? 'tsx' : 'ts',
+      format: 'esm',
+      target: 'es2020',
+      define: {
+        'process.env.API_KEY': JSON.stringify(geminiKey),
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+
+    // Fix relative imports to include extension
+    const transformedCode = result.code.replace(
+      /from\s+['"](\.\.?\/[^'"]+)['"]/g,
+      (match, p1) => {
+        if (p1.match(/\.(tsx|ts|js|css)$/)) return match;
+        const dir = path.dirname(filePath);
+        if (fs.existsSync(path.join(dir, p1 + '.tsx'))) return `from "${p1}.tsx"`;
+        if (fs.existsSync(path.join(dir, p1 + '.ts'))) return `from "${p1}.ts"`;
+        return match;
+      }
+    );
+
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(transformedCode);
+  } catch (err) {
+    console.error(`[MoneyMate] Error transpiling ${req.path}:`, err);
+    res.status(500).send(`console.error("Transpilation failed for ${req.path}: ${err.message}");`);
+  }
+});
+
 app.use(express.static(process.cwd()));
-app.get('*', (req, res) => { res.sendFile(path.join(process.cwd(), 'index.html')); });
+app.get('*', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'index.html'));
+});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`[MoneyMate] Server active on PORT ${PORT}`));
+app.listen(PORT, () => console.log(`[MoneyMate] Listening on ${PORT}`));
