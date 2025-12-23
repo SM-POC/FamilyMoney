@@ -439,7 +439,7 @@ const App: React.FC = () => {
             setExpandedReceiptId={setExpandedReceiptId} 
           />
         )}
-        {activeTab === 'planner' && <FutureView schedule={schedule} />}
+        {activeTab === 'planner' && <FutureView schedule={schedule} profile={profile} />}
         {activeTab === 'payment-tracker' && <PaymentTrackerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'income' && <IncomeHubView profile={profile} setProfile={setProfile} />}
         {activeTab === 'money-lent' && <MoneyLentView profile={profile} setProfile={setProfile} />}

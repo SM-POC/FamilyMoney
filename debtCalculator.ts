@@ -1,8 +1,17 @@
 
 import { Debt, PayoffMonth, UserFinancialProfile, StrategyType, LentMoney } from './types';
 
-export const calculatePayoffSchedule = (profile: UserFinancialProfile): PayoffMonth[] => {
+export interface PayoffOptions {
+  monthlyOverpayment?: number;
+  maxMonths?: number;
+}
+
+export const calculatePayoffSchedule = (
+  profile: UserFinancialProfile,
+  options: PayoffOptions = {}
+): PayoffMonth[] => {
   const { debts, income, expenses, specialEvents, luxuryBudget, savingsBuffer, strategy, lentMoney = [] } = profile;
+  const { monthlyOverpayment = 0, maxMonths = 360 } = options;
   
   if (debts.length === 0 && lentMoney.length === 0) return [];
 
@@ -25,7 +34,6 @@ export const calculatePayoffSchedule = (profile: UserFinancialProfile): PayoffMo
   
   let currentMonthDate = new Date();
   let monthsCount = 0;
-  const maxMonths = 360;
 
   while ((currentDebts.some(d => d.balance > 0) || currentLent.some(l => l.remainingBalance > 0)) && monthsCount < maxMonths) {
     const monthIndex = (currentMonthDate.getMonth() + monthsCount) % 12;
@@ -72,7 +80,7 @@ export const calculatePayoffSchedule = (profile: UserFinancialProfile): PayoffMo
       }
     });
 
-    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringExpenses - luxuryBudget - eventBudget;
+    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringExpenses - luxuryBudget - eventBudget + monthlyOverpayment;
     if (availableForDebt < 0) availableForDebt = 0;
 
     // 1. Mandatory Minimums
