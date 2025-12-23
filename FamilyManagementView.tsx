@@ -10,19 +10,27 @@ interface FamilyManagementViewProps {
 
 export const FamilyManagementView: React.FC<FamilyManagementViewProps> = ({ profile, setProfile }) => {
   const [newName, setNewName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordEdits, setPasswordEdits] = useState<Record<string, string>>({});
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
+    if (newPassword.trim().length < 6) {
+      alert("Please choose a password with at least 6 characters.");
+      return;
+    }
     const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500', 'bg-violet-500'];
     const newUser: FamilyUser = {
       id: Math.random().toString(36).substr(2, 9),
       name: newName.trim(),
       role: 'Member',
-      avatarColor: colors[profile.users.length % colors.length]
+      avatarColor: colors[profile.users.length % colors.length],
+      password: newPassword.trim()
     };
     setProfile(p => ({ ...p, users: [...p.users, newUser] }));
     setNewName('');
+    setNewPassword('');
   };
 
   const removeMember = (id: string) => {
@@ -32,6 +40,16 @@ export const FamilyManagementView: React.FC<FamilyManagementViewProps> = ({ prof
     }
     if (!confirm("Are you sure you want to remove this family member? Their name will remain on history but their profile will be gone.")) return;
     setProfile(p => ({ ...p, users: p.users.filter(u => u.id !== id) }));
+  };
+
+  const updatePassword = (id: string) => {
+    const next = (passwordEdits[id] || '').trim();
+    if (next.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+    setProfile(p => ({ ...p, users: p.users.map(u => u.id === id ? { ...u, password: next } : u) }));
+    setPasswordEdits(p => ({ ...p, [id]: '' }));
   };
 
   return (
@@ -83,6 +101,29 @@ export const FamilyManagementView: React.FC<FamilyManagementViewProps> = ({ prof
                       </button>
                     )}
                   </div>
+
+                  <div className="mt-6 space-y-2 relative z-10">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Password</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="password" 
+                        placeholder={user.password ? "Update password" : "Set password"} 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                        value={passwordEdits[user.id] ?? ''}
+                        onChange={e => setPasswordEdits(p => ({ ...p, [user.id]: e.target.value }))}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => updatePassword(user.id)}
+                        className="px-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-colors"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    {!user.password && (
+                      <p className="text-[10px] text-amber-500 font-black uppercase tracking-widest">No password set yet.</p>
+                    )}
+                  </div>
                   
                   {isMe && (
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-0 opacity-50" />
@@ -106,6 +147,13 @@ export const FamilyManagementView: React.FC<FamilyManagementViewProps> = ({ prof
               className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" 
               value={newName} 
               onChange={e => setNewName(e.target.value)} 
+            />
+            <input 
+              type="password"
+              placeholder="Password (min 6 characters)" 
+              className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" 
+              value={newPassword} 
+              onChange={e => setNewPassword(e.target.value)} 
             />
             
             <button 

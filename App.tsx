@@ -85,8 +85,8 @@ const App: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
 
   const [selectedLoginUser, setSelectedLoginUser] = useState<FamilyUser | null>(null);
-  const [pinEntry, setPinEntry] = useState('');
-  const [loginError, setLoginError] = useState(false);
+  const [passwordEntry, setPasswordEntry] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const currentUser = useMemo(() => profile.users.find(u => u.id === profile.currentUserId), [profile.users, profile.currentUserId]);
   const isLoggedIn = !!currentUser;
@@ -174,19 +174,25 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setProfile(p => ({ ...p, currentUserId: undefined }));
     setSelectedLoginUser(null);
-    setPinEntry('');
-    setLoginError(false);
+    setPasswordEntry('');
+    setLoginError(null);
   };
 
-  const handlePinSubmit = (val: string) => {
+  const handlePasswordSubmit = () => {
     if (!selectedLoginUser) return;
-    const actualPin = selectedLoginUser.pin || '1234';
-    if (val === actualPin) {
+    const storedPassword = (selectedLoginUser.password || selectedLoginUser.pin || '').trim();
+    if (!storedPassword) {
+      setLoginError('This account does not have a password yet. Ask an admin to set one.');
+      return;
+    }
+
+    if (passwordEntry === storedPassword) {
       setProfile(p => ({ ...p, currentUserId: selectedLoginUser.id }));
-      setLoginError(false);
+      setLoginError(null);
+      setPasswordEntry('');
     } else {
-      setLoginError(true);
-      setPinEntry('');
+      setLoginError('Invalid password. Please try again.');
+      setPasswordEntry('');
     }
   };
 
@@ -262,34 +268,43 @@ const App: React.FC = () => {
                   </div>
                   <div>
                      <h2 className="text-2xl font-black text-white uppercase tracking-widest">{selectedLoginUser.name}</h2>
-                     <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Verify Identity</p>
+                     <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Enter account password to continue</p>
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-3">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${pinEntry.length > i ? 'bg-indigo-500 border-indigo-500 scale-125' : 'border-slate-600'}`} />
-                  ))}
-                </div>
+                <form 
+                  onSubmit={(e) => { e.preventDefault(); handlePasswordSubmit(); }} 
+                  className="space-y-4"
+                >
+                  <input 
+                    type="password" 
+                    placeholder="Password" 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl p-4 font-black text-sm text-white text-center tracking-[0.3em]"
+                    value={passwordEntry}
+                    onChange={e => { setPasswordEntry(e.target.value); if (loginError) setLoginError(null); }}
+                    autoFocus
+                  />
+                  {loginError && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest">{loginError}</p>}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      type="button" 
+                      onClick={() => { setSelectedLoginUser(null); setPasswordEntry(''); setLoginError(null); }} 
+                      className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-[10px] uppercase tracking-widest"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="h-16 bg-indigo-600 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest hover:bg-indigo-500 transition-colors shadow-sm"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                </form>
 
-                {loginError && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest animate-bounce">Invalid PIN Entry</p>}
-
-                <div className="grid grid-cols-3 gap-3">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                    <button key={n} onClick={() => {
-                      const next = pinEntry + n;
-                      if (next.length <= 4) setPinEntry(next);
-                      if (next.length === 4) handlePinSubmit(next);
-                    }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors shadow-sm">{n}</button>
-                  ))}
-                  <button onClick={() => { setSelectedLoginUser(null); setPinEntry(''); setLoginError(false); }} className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-[10px] uppercase tracking-widest">Cancel</button>
-                  <button onClick={() => {
-                    const next = pinEntry + '0';
-                    if (next.length <= 4) setPinEntry(next);
-                    if (next.length === 4) handlePinSubmit(next);
-                  }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors shadow-sm">0</button>
-                  <button onClick={() => setPinEntry(pinEntry.slice(0, -1))} className="h-16 bg-slate-800 rounded-2xl text-slate-400 font-black text-[10px] uppercase tracking-widest">Delete</button>
-                </div>
+                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+                  Passwords are stored per user and synced to the database.
+                </p>
               </div>
             ) : profile.users.length === 0 ? (
               <div className="text-center space-y-6 animate-in zoom-in">
@@ -313,7 +328,11 @@ const App: React.FC = () => {
                 {profile.users.map(user => (
                   <button 
                     key={user.id}
-                    onClick={() => setSelectedLoginUser(user)}
+                    onClick={() => { 
+                      setSelectedLoginUser(user);
+                      setPasswordEntry('');
+                      setLoginError(null);
+                    }}
                     className="bg-slate-900/50 p-8 rounded-[3rem] border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all group flex flex-col items-center gap-4 relative shadow-sm"
                   >
                     <LockClosedIcon className="absolute top-4 right-4 w-4 h-4 text-slate-700 group-hover:text-indigo-400 transition-colors" />

@@ -35,6 +35,7 @@ if (dbUrl) {
           name TEXT NOT NULL,
           role TEXT NOT NULL,
           avatar_color TEXT,
+          password TEXT,
           pin TEXT
         );
         CREATE TABLE IF NOT EXISTS debts (
@@ -90,6 +91,11 @@ if (dbUrl) {
           strategy TEXT
         );
       `);
+      await client.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS pin TEXT;
+        UPDATE users SET password = pin WHERE password IS NULL AND pin IS NOT NULL;
+      `);
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
       console.error('[MoneyMate] Handshake Failed:', err.message);
@@ -127,7 +133,7 @@ app.get('/api/health', async (req, res) => {
 
 app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
   try {
-    const users = await pool.query('SELECT * FROM users');
+    const users = await pool.query('SELECT id, name, role, avatar_color, COALESCE(password, pin) AS password FROM users');
     const debts = await pool.query('SELECT * FROM debts');
     const expenses = await pool.query('SELECT * FROM expenses');
     const income = await pool.query('SELECT * FROM income');
@@ -137,7 +143,13 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
     const config = await pool.query('SELECT * FROM profile_config LIMIT 1');
 
     res.json({
-      users: users.rows.map(u => ({ ...u, avatarColor: u.avatar_color })),
+      users: users.rows.map(u => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        avatarColor: u.avatar_color,
+        password: u.password
+      })),
       debts: debts.rows.map(d => ({ ...d, interestRate: parseFloat(d.interest_rate), minimumPayment: parseFloat(d.minimum_payment), balance: parseFloat(d.balance) })),
       expenses: expenses.rows.map(e => ({ ...e, amount: parseFloat(e.amount) })),
       income: income.rows.map(i => ({ ...i, amount: parseFloat(i.amount) })),
@@ -162,7 +174,7 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     const p = req.body;
     await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM profile_config;');
 
-    for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color, pin) VALUES ($1, $2, $3, $4, $5)', [u.id, u.name, u.role, u.avatarColor, u.pin || '1234']);
+    for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color, password) VALUES ($1, $2, $3, $4, $5)', [u.id, u.name, u.role, u.avatarColor, u.password || null]);
     for (const d of (p.debts || [])) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
     for (const e of (p.expenses || [])) await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
     for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
