@@ -33,8 +33,8 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
   }, [receiptReview, profile.cards]);
 
   const groupedSpendLog = React.useMemo(() => {
-    // Show only discretionary/one-off spend (exclude bills/subscriptions)
-    const nonRecurring = profile.expenses.filter(e => !e.isRecurring && !e.isSubscription);
+    // Show only discretionary/one-off spend (exclude bills/subscriptions; require explicit false)
+    const nonRecurring = profile.expenses.filter(e => e.isRecurring === false && e.isSubscription === false);
     const groups: Record<string, { merchant: string; date: string; total: number; cardId?: string; cardLast4?: string; cardOwner?: string; items: Expense[]; isReceipt: boolean }> = {};
     nonRecurring.forEach(exp => {
       const card = profile.cards.find(c => c.id === exp.cardId);

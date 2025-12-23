@@ -32,7 +32,12 @@ export const scanReceipt = async (base64Image: string) => {
     messages: [
       {
         role: "system",
-        content: "Extract UK receipt details. Return JSON with keys: merchant, date (YYYY-MM-DD), paymentMethod, cardLast4 (string or null), items (array of {description, amount, category}). Keep GBP amounts as numbers."
+        content: [
+          "You are a UK receipt parser. Return strict JSON.",
+          "Fields: merchant (string), date (YYYY-MM-DD), paymentMethod (string), cardLast4 (string or null), items (array of {description, amount, category}).",
+          "Infer sensible categories (e.g., Groceries, Dining Out, Travel, Utilities, Entertainment, Household, Health, Kids, Pets, Other).",
+          "If unsure of category, use 'Uncategorized'. Amounts must be numbers, not strings."
+        ].join(" ")
       },
       {
         role: "user",
