@@ -1,106 +1,84 @@
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.API_KEY || "";
+export const HAS_AI_ACCESS = !!(OPENAI_API_KEY && OPENAI_API_KEY !== "undefined");
+const OPENAI_MODEL = 'gpt-4o-mini';
 
-import { GoogleGenAI, Type } from "@google/genai";
+const callOpenAI = async (payload: Record<string, any>) => {
+  if (!HAS_AI_ACCESS) throw new Error("AI service unavailable");
 
-// Check if API Key is present for feature toggling
-export const HAS_AI_ACCESS = !!(process.env.API_KEY && process.env.API_KEY !== "undefined");
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({ model: OPENAI_MODEL, ...payload })
+  });
 
-const ai = HAS_AI_ACCESS ? new GoogleGenAI({ apiKey: process.env.API_KEY }) : null;
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenAI error: ${response.status} ${errText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+  return typeof content === 'string' ? content : JSON.stringify(content);
+};
 
 export const scanReceipt = async (base64Image: string) => {
-  if (!ai) throw new Error("AI service unavailable");
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Image.split(',')[1] || base64Image
-            }
-          },
-          {
-            text: "Analyze this UK receipt in extreme detail. Extract Merchant, Date (YYYY-MM-DD), Payment Method, Last 4 digits, and all line items with suggested categories. GBP £."
-          }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            merchant: { type: Type.STRING },
-            date: { type: Type.STRING },
-            paymentMethod: { type: Type.STRING },
-            cardLast4: { type: Type.STRING },
-            items: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  description: { type: Type.STRING },
-                  amount: { type: Type.NUMBER },
-                  category: { type: Type.STRING }
-                },
-                required: ["description", "amount", "category"]
-              }
-            }
-          },
-          required: ["merchant", "date", "items"]
-        }
-      }
-    });
+  const dataUrl = base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`;
 
-    return JSON.parse(response.text);
-  } catch (error) {
-    console.error("Error scanning receipt:", error);
-    throw error;
+  const content = await callOpenAI({
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: "Extract UK receipt details. Return JSON with keys: merchant, date (YYYY-MM-DD), paymentMethod, cardLast4 (string or null), items (array of {description, amount, category}). Keep GBP amounts as numbers."
+      },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze this receipt image and return the JSON structure described." },
+          { type: "image_url", image_url: { url: dataUrl } }
+        ]
+      }
+    ]
+  });
+
+  try {
+    return JSON.parse(content);
+  } catch (err) {
+    console.error("Failed to parse receipt JSON:", content);
+    throw err;
   }
 };
 
 export const getFinancialAdvice = async (financialSummary: string) => {
-  if (!ai) return "";
+  if (!HAS_AI_ACCESS) return "";
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `UK financial advice for: ${financialSummary}. 3 short tips, <150 words.`,
-      config: { temperature: 0.7 }
+    return await callOpenAI({
+      messages: [
+        { role: "system", content: "You are a concise UK personal finance coach. Keep responses under 150 words." },
+        { role: "user", content: `Give 3 short tips for this situation: ${financialSummary}` }
+      ],
+      temperature: 0.7
     });
-    return response.text;
   } catch (error) {
     return "Consolidate high-interest debt into lower-rate options.";
   }
 };
 
 export const findDebtOptimizationDeals = async (highestInterestDebt: number, balance: number) => {
-  if (!ai) return { deals: [], sources: [] };
+  if (!HAS_AI_ACCESS) return { deals: [], sources: [] };
   try {
-    const prompt = `Find UK balance transfer cards for £${balance} debt at ${highestInterestDebt}% interest.`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
-              url: { type: Type.STRING },
-              savingsEstimate: { type: Type.STRING }
-            },
-            required: ["title", "description", "url", "savingsEstimate"]
-          }
-        }
-      }
+    const content = await callOpenAI({
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "Return JSON with deals: array of {title, description, url, savingsEstimate}. UK-focused, concise." },
+        { role: "user", content: `Find UK balance transfer or refinance options for £${balance} at ${highestInterestDebt}% APR.` }
+      ]
     });
-    return {
-      deals: JSON.parse(response.text),
-      sources: (response.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web?.uri).filter(Boolean) as string[]
-    };
+    const parsed = JSON.parse(content);
+    return { deals: parsed.deals || [], sources: parsed.sources || [] };
   } catch (error) {
     return { deals: [], sources: [] };
   }

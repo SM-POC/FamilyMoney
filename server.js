@@ -13,7 +13,7 @@ app.use(cors());
 // Environment Config
 const dbUrl = process.env.DATABASE_URL;
 const authKey = process.env.AUTH_KEY || "";
-const geminiKey = process.env.API_KEY || "";
+const openAiKey = process.env.OPENAI_API_KEY || process.env.API_KEY || "";
 let pool = null;
 
 if (dbUrl) {
@@ -200,7 +200,8 @@ app.get(/\.(tsx|ts)$/, async (req, res) => {
       format: 'esm',
       target: 'es2020',
       define: {
-        'process.env.API_KEY': JSON.stringify(geminiKey),
+        'process.env.API_KEY': JSON.stringify(openAiKey),
+        'process.env.OPENAI_API_KEY': JSON.stringify(openAiKey),
         'process.env.AUTH_KEY': JSON.stringify(authKey),
         'process.env.NODE_ENV': '"production"'
       }
