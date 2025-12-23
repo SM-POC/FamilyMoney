@@ -23,7 +23,7 @@ if (dbUrl) {
     ssl: { rejectUnauthorized: false }
   });
 
-  // Initialize Schema & Seed Data
+  // Initialize Schema
   const initDb = async () => {
     const client = await pool.connect();
     try {
@@ -89,15 +89,6 @@ if (dbUrl) {
           strategy TEXT
         );
       `);
-
-      const userCheck = await client.query('SELECT COUNT(*) FROM users');
-      if (parseInt(userCheck.rows[0].count) === 0) {
-        console.log('[MoneyMate] Seeding default admin user (PIN: 1234)...');
-        await client.query(
-          "INSERT INTO users (id, name, role, avatar_color, pin) VALUES ($1, $2, $3, $4, $5)",
-          ['admin-seed', 'Admin', 'Admin', 'bg-indigo-600', '1234']
-        );
-      }
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
       console.error('[MoneyMate] Initialization Error:', err);
@@ -106,21 +97,23 @@ if (dbUrl) {
     }
   };
   initDb();
-} else {
-  console.warn('[MoneyMate] No DATABASE_URL found. Running in local-only mode.');
 }
 
 /**
  * JIT Transpiler Middleware
- * Corrects "Failed to load module" by ensuring strict application/javascript MIME types.
+ * Corrects "Failed to load index.tsx" by ensuring strict JS MIME types and handling errors gracefully.
  */
-app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res, next) => {
+app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res) => {
   const cleanPath = req.path.split('?')[0];
   const relPath = cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath;
   const filePath = path.join(process.cwd(), relPath);
 
-  if (!fs.existsSync(filePath) || fs.lstatSync(filePath).isDirectory()) {
-    return res.status(404).type('application/javascript').send(`console.error("File not found: ${relPath}");`);
+  // Set headers early to satisfy browser ES Module requirements
+  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send(`console.error("MoneyMate: File not found - ${relPath}");`);
   }
 
   try {
@@ -148,12 +141,10 @@ app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res, next) => {
       }
     );
 
-    res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(transformedCode);
   } catch (err) {
     console.error(`[MoneyMate] Transpilation Error [${relPath}]:`, err);
-    res.status(500).type('application/javascript').send(`console.error("Transpilation failed: ${err.message.replace(/"/g, '\\"')}");`);
+    res.status(500).send(`console.error("MoneyMate Transpilation failed for ${relPath}: ${err.message.replace(/"/g, '\\"')}");`);
   }
 });
 
