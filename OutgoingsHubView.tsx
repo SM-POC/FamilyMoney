@@ -67,7 +67,7 @@ export const OutgoingsHubView: React.FC<OutgoingsHubViewProps> = ({ profile, set
           <p className="text-slate-500 font-medium italic">Managed obligations vs flexible monthly subscriptions.</p>
         </div>
         <div className="bg-white px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
-          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Potential Savings</p><p className="text-xl font-black text-rose-500">稖{totalSubSpend.toFixed(2)}</p></div>
+          <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Potential Savings</p><p className="text-xl font-black text-rose-500">£{totalSubSpend.toFixed(2)}</p></div>
           <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center text-rose-500"><ScissorsIcon className="w-5 h-5" /></div>
         </div>
       </header>
@@ -119,7 +119,7 @@ export const OutgoingsHubView: React.FC<OutgoingsHubViewProps> = ({ profile, set
                       {isEditing ? (
                         <input type="number" className="text-2xl font-black text-slate-900 bg-slate-50 p-1 rounded w-24" value={editValues.amount} onChange={e => setEditValues({...editValues, amount: e.target.value})} />
                       ) : (
-                        <p className="text-2xl font-black text-slate-900 tracking-tighter">稖{bill.amount.toLocaleString()}</p>
+                        <p className="text-2xl font-black text-slate-900 tracking-tighter">£{bill.amount.toLocaleString()}</p>
                       )}
                       <div className="flex items-center space-x-2">
                         {isEditing ? (
@@ -180,7 +180,7 @@ export const OutgoingsHubView: React.FC<OutgoingsHubViewProps> = ({ profile, set
                       {isEditing ? (
                         <input type="number" className="text-xl font-black text-slate-900 bg-slate-50 p-1 rounded w-20" value={editValues.amount} onChange={e => setEditValues({...editValues, amount: e.target.value})} />
                       ) : (
-                        <p className="text-xl font-black text-slate-900 tracking-tighter">稖{sub.amount.toLocaleString()}</p>
+                        <p className="text-xl font-black text-slate-900 tracking-tighter">£{sub.amount.toLocaleString()}</p>
                       )}
                       <div className="flex items-center space-x-1">
                         {isEditing ? (
@@ -223,7 +223,7 @@ export const OutgoingsHubView: React.FC<OutgoingsHubViewProps> = ({ profile, set
               )}
             </div>
             
-            <input type="number" step="0.01" placeholder="Monthly Amount (稖)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newBill.amount} onChange={e => setNewBill({...newBill, amount: e.target.value})} />
+            <input type="number" step="0.01" placeholder="Monthly Amount (£)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newBill.amount} onChange={e => setNewBill({...newBill, amount: e.target.value})} />
             
             <div className="space-y-2">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Category</label>

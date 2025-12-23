@@ -129,7 +129,7 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
                           <input type="number" className="w-16 bg-slate-50 rounded" value={editValues.targetAmount} onChange={e => setEditValues({...editValues, targetAmount: e.target.value})} />
                         </div>
                       ) : (
-                        <span>稖{goal.currentAmount.toLocaleString()} / 稖{goal.targetAmount.toLocaleString()}</span>
+                        <span>£{goal.currentAmount.toLocaleString()} / £{goal.targetAmount.toLocaleString()}</span>
                       )}
                     </div>
                     <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
@@ -151,7 +151,7 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
                       />
                     ) : (
                       <p className="text-xl font-black text-slate-900 tracking-tighter">
-                        {monthly !== null ? `稖${monthly.toFixed(2)}` : 'N/A'}
+                        {monthly !== null ? `£${monthly.toFixed(2)}` : 'N/A'}
                       </p>
                     )}
                   </div>
@@ -180,12 +180,12 @@ export const FamilyGoalsView: React.FC<FamilyGoalsViewProps> = ({ profile, setPr
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <input type="number" placeholder="Target (稖)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} />
-              <input type="number" placeholder="Started with (稖)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.current} onChange={e => setNewGoal({...newGoal, current: e.target.value})} />
+              <input type="number" placeholder="Target (£)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} />
+              <input type="number" placeholder="Started with (£)" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.current} onChange={e => setNewGoal({...newGoal, current: e.target.value})} />
             </div>
             <div className="space-y-2">
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Optional Monthly Contribution</label>
-              <input type="number" placeholder="稖 per month" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.monthly} onChange={e => setNewGoal({...newGoal, monthly: e.target.value})} />
+              <input type="number" placeholder="£ per month" className="w-full bg-slate-50 border-none rounded-2xl p-5 font-black text-sm" value={newGoal.monthly} onChange={e => setNewGoal({...newGoal, monthly: e.target.value})} />
             </div>
             <div className="space-y-2">
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2 flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> Target Date</label>

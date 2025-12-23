@@ -218,7 +218,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, setProfile 
                 <div key={ev.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                   <div>
                     <p className="font-black text-slate-900">{ev.name}</p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{monthNames[ev.month] || 'Month'} • 稖{ev.budget.toFixed(2)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{monthNames[ev.month] || 'Month'} • £{ev.budget.toFixed(2)}</p>
                   </div>
                   <button onClick={() => removeEvent(ev.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
                     <XCircleIcon className="w-5 h-5" />
@@ -243,7 +243,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, setProfile 
               </select>
               <input
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
-                placeholder="Budget (稖)"
+                placeholder="Budget (£)"
                 type="number"
                 step="0.01"
                 value={newEvent.budget}
