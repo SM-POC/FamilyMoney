@@ -12,7 +12,7 @@ app.use(cors());
 
 // Environment Config
 const dbUrl = process.env.DATABASE_URL;
-const authKey = process.env.AUTH_KEY;
+const authKey = process.env.AUTH_KEY || "";
 const geminiKey = process.env.API_KEY || "";
 let pool = null;
 
@@ -21,12 +21,13 @@ if (dbUrl) {
   pool = new Pool({
     connectionString: dbUrl,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 5000
+    connectionTimeoutMillis: 10000 // Increased for Railway cold starts
   });
 
   const initDb = async () => {
     let client;
     try {
+      console.log('[MoneyMate] Attempting database handshake...');
       client = await pool.connect();
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -91,7 +92,7 @@ if (dbUrl) {
       `);
       console.log('[MoneyMate] Database Ready.');
     } catch (err) {
-      console.error('[MoneyMate] Init Error:', err.message);
+      console.error('[MoneyMate] Handshake Failed:', err.message);
     } finally {
       if (client) client.release();
     }
@@ -103,17 +104,17 @@ const validateAuth = (req, res, next) => {
   if (!authKey) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${authKey}`) {
+    console.warn('[MoneyMate] Blocked Unauthorized Request');
     return res.status(401).json({ error: 'Unauthorized Access Token Required' });
   }
   next();
 };
 
 const checkDb = (req, res, next) => {
-  if (!pool) return res.status(503).json({ error: 'Database not configured.' });
+  if (!pool) return res.status(503).json({ error: 'Database not linked.' });
   next();
 };
 
-// --- API ROUTES FIRST ---
 app.get('/api/health', async (req, res) => {
   if (!pool) return res.json({ status: 'warning', database: 'not_configured' });
   try {
@@ -180,12 +181,11 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   }
 });
 
-// --- JIT TRANSPILER ---
 app.get(/\.(tsx|ts)$/, async (req, res) => {
-  const filePath = path.join(process.cwd(), req.path);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send('File not found');
-  }
+  const relPath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
+  const filePath = path.resolve(process.cwd(), relPath);
+
+  if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
 
   try {
     const code = fs.readFileSync(filePath, 'utf8');
@@ -195,34 +195,33 @@ app.get(/\.(tsx|ts)$/, async (req, res) => {
       target: 'es2020',
       define: {
         'process.env.API_KEY': JSON.stringify(geminiKey),
+        'process.env.AUTH_KEY': JSON.stringify(authKey),
         'process.env.NODE_ENV': '"production"'
       }
     });
 
-    // Fix relative imports to include extension
-    const transformedCode = result.code.replace(
+    let transformedCode = result.code.replace(
       /from\s+['"](\.\.?\/[^'"]+)['"]/g,
       (match, p1) => {
         if (p1.match(/\.(tsx|ts|js|css)$/)) return match;
         const dir = path.dirname(filePath);
-        if (fs.existsSync(path.join(dir, p1 + '.tsx'))) return `from "${p1}.tsx"`;
-        if (fs.existsSync(path.join(dir, p1 + '.ts'))) return `from "${p1}.ts"`;
+        if (fs.existsSync(path.resolve(dir, p1 + '.tsx'))) return `from "${p1}.tsx"`;
+        if (fs.existsSync(path.resolve(dir, p1 + '.ts'))) return `from "${p1}.ts"`;
         return match;
       }
     );
 
-    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
     res.send(transformedCode);
   } catch (err) {
-    console.error(`[MoneyMate] Error transpiling ${req.path}:`, err);
-    res.status(500).send(`console.error("Transpilation failed for ${req.path}: ${err.message}");`);
+    res.status(500).send(`console.error("Transpilation failed: ${err.message}");`);
   }
 });
 
 app.use(express.static(process.cwd()));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'index.html'));
-});
+app.get('*', (req, res) => res.sendFile(path.resolve(process.cwd(), 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`[MoneyMate] Listening on ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[MoneyMate] Listening on ${PORT}`);
+});

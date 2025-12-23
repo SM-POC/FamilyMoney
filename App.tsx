@@ -53,6 +53,8 @@ import { FamilyManagementView } from './FamilyManagementView';
 import { SettingsView } from './SettingsView';
 
 const STORAGE_KEY = 'money_mate_v1_profile';
+// Access injected Auth Key from server environment
+const AUTH_KEY = (process.env as any).AUTH_KEY || "";
 
 const EMPTY_PROFILE: UserFinancialProfile = {
   users: [],
@@ -95,14 +97,14 @@ const App: React.FC = () => {
     setConnectionStatus('loading');
     setConnectionError(null);
     try {
-      console.log("[MoneyMate] Fetching database users...");
-      const remote = await syncPull('', ''); 
+      console.log("[MoneyMate] Pulling with key security...");
+      const remote = await syncPull('', AUTH_KEY); 
       if (remote) {
         setProfile(p => ({ ...p, ...remote }));
         setConnectionStatus('success');
       }
     } catch (e: any) { 
-      console.error("[MoneyMate] Database access error:", e.message); 
+      console.error("[MoneyMate] Pull failed:", e.message); 
       setConnectionStatus('failed');
       setConnectionError(e.message);
     } finally {
@@ -121,10 +123,10 @@ const App: React.FC = () => {
     const timer = setTimeout(async () => {
       setIsSyncing(true);
       try {
-        await syncPush('', '', profile);
-        console.log("[MoneyMate] Entries synced to DB.");
+        await syncPush('', AUTH_KEY, profile);
+        console.log("[MoneyMate] Cloud state updated.");
       } catch (e: any) { 
-        console.error("[MoneyMate] Auto-sync failed:", e.message); 
+        console.error("[MoneyMate] Sync failed:", e.message); 
       } finally { 
         setIsSyncing(false); 
       }
@@ -214,7 +216,7 @@ const App: React.FC = () => {
               {connectionStatus === 'failed' && (
                 <div className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-3 py-1 rounded-full border border-rose-500/20 text-[9px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-2">
                   <NoSymbolIcon className="w-3.5 h-3.5" />
-                  Connection Offline
+                  Auth / Pull Failure
                 </div>
               )}
               {connectionStatus === 'loading' && (
@@ -242,14 +244,14 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-white uppercase tracking-widest">Access Denied</h2>
-                  <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest mb-2">Error: {connectionError || "Unknown connection failure"}</p>
-                  <p className="text-slate-400 text-[10px] mt-2 italic leading-relaxed px-4">The application could not establish a handshake with the database. Please verify your environment variables or local network status.</p>
+                  <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest mb-2">System Error: {connectionError || "Unknown failure"}</p>
+                  <p className="text-slate-400 text-[10px] mt-2 italic leading-relaxed px-4">Ensure your Railway AUTH_KEY is correct. The app failed to pull the user list.</p>
                 </div>
                 <button 
                   onClick={refreshFromDb}
                   className="bg-rose-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-xl shadow-rose-900/20"
                 >
-                  Reconnect to Vault
+                  Retry Connection
                 </button>
               </div>
             ) : selectedLoginUser ? (
@@ -296,7 +298,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <h2 className="text-xl font-black text-white uppercase tracking-widest text-emerald-400">Handshake Success</h2>
-                  <p className="text-slate-400 text-[10px] italic leading-relaxed px-4">Connection to PostgreSQL was successful. However, the 'users' table is currently empty. Please register users directly via SQL or contact support.</p>
+                  <p className="text-slate-400 text-[10px] italic leading-relaxed px-4">Connected to Railway Postgres. Table is currently empty. Register users via DB or contact Admin.</p>
                 </div>
                 <button 
                   onClick={refreshFromDb}
@@ -329,10 +331,10 @@ const App: React.FC = () => {
              <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${connectionStatus === 'success' ? 'bg-emerald-500 animate-pulse' : connectionStatus === 'failed' ? 'bg-rose-500' : 'bg-slate-600'}`} />
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em]">
-                  Security Status: {connectionStatus === 'success' ? 'Linked & Encrypted' : connectionStatus === 'failed' ? 'Connection Blocked' : 'Linking...'}
+                  Security Status: {connectionStatus === 'success' ? 'Linked & Encrypted' : connectionStatus === 'failed' ? 'Auth Failure' : 'Linking...'}
                 </p>
              </div>
-             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em] italic">PostgreSQL {connectionStatus === 'success' ? 'Handshake Finalized' : 'Handshake Pending'}.</p>
+             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em] italic">System Ready.</p>
           </div>
         </div>
       </div>
