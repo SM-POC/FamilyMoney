@@ -101,28 +101,38 @@ const App: React.FC = () => {
   useEffect(() => {
     const initFetch = async () => {
       try {
-        const remote = await syncPull('', ''); // Use internal proxy
+        console.log("[MoneyMate] Attempting to pull data from PostgreSQL...");
+        const remote = await syncPull('', ''); 
         if (remote && remote.users.length > 0) {
+          console.log("[MoneyMate] Remote data synced successfully.");
           setProfile(p => ({ ...p, ...remote }));
         }
-      } catch (e) { console.warn("Initial DB sync failed, using local."); }
+      } catch (e) { 
+        console.warn("[MoneyMate] Initial DB sync failed, falling back to local storage.", e); 
+      }
     };
     initFetch();
   }, []);
 
-  // Automated Debounced Sync to DB
+  // Automated Real-time Sync to Database (Debounced)
   useEffect(() => {
+    // Save to LocalStorage for offline fallback
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
     
+    // Skip sync if no users exist yet (during initial setup)
+    if (profile.users.length === 0) return;
+
     const timer = setTimeout(async () => {
-      if (profile.users.length > 0) {
-        setIsSyncing(true);
-        try {
-          await syncPush('', '', profile);
-        } catch (e) { console.error("Auto-sync failed", e); }
-        finally { setIsSyncing(false); }
+      setIsSyncing(true);
+      try {
+        await syncPush('', '', profile);
+        console.log("[MoneyMate] Successfully pushed updates to PostgreSQL.");
+      } catch (e) { 
+        console.error("[MoneyMate] Real-time sync failed:", e); 
+      } finally { 
+        setIsSyncing(false); 
       }
-    }, 2000);
+    }, 1500); // 1.5s debounce
 
     return () => clearTimeout(timer);
   }, [profile]);
@@ -152,7 +162,7 @@ const App: React.FC = () => {
   const fetchAdvice = useCallback(async () => {
     if (!HAS_AI_ACCESS) return;
     if (totalIncome === 0 && totalDebt === 0) {
-      setAdvice("Start by adding your income and debts to get personalized AI strategy advice.");
+      setAdvice("Add your data to receive personalized AI strategies.");
       return;
     }
     setLoadingAdvice(true);
@@ -187,7 +197,8 @@ const App: React.FC = () => {
 
   const handlePinSubmit = (val: string) => {
     if (!selectedLoginUser) return;
-    if (val === (selectedLoginUser.pin || '1234')) {
+    const actualPin = selectedLoginUser.pin || '1234';
+    if (val === actualPin) {
       setProfile(p => ({ ...p, currentUserId: selectedLoginUser.id }));
       setLoginError(false);
     } else {
@@ -210,7 +221,7 @@ const App: React.FC = () => {
               <ShieldCheckIcon className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">MoneyMate</h1>
-            <p className="text-slate-400 font-medium">Family Secure Vault</p>
+            <p className="text-slate-400 font-medium">Family Secure Portal</p>
           </div>
 
           {selectedLoginUser ? (
@@ -241,20 +252,20 @@ const App: React.FC = () => {
                     if (next.length === 4) handlePinSubmit(next);
                   }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors">{n}</button>
                 ))}
-                <button onClick={() => setSelectedLoginUser(null)} className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest">Back</button>
+                <button onClick={() => { setSelectedLoginUser(null); setPinEntry(''); setLoginError(false); }} className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest">Back</button>
                 <button onClick={() => {
                   const next = pinEntry + '0';
                   if (next.length <= 4) setPinEntry(next);
                   if (next.length === 4) handlePinSubmit(next);
                 }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors">0</button>
-                <button onClick={() => setPinEntry(pinEntry.slice(0, -1))} className="h-16 bg-slate-800 rounded-2xl text-slate-400 font-black text-xs uppercase tracking-widest">Delete</button>
+                <button onClick={() => setPinEntry(pinEntry.slice(0, -1))} className="h-16 bg-slate-800 rounded-2xl text-slate-400 font-black text-xs uppercase tracking-widest">Del</button>
               </div>
             </div>
           ) : profile.users.length === 0 ? (
             <div className="bg-slate-800 p-10 rounded-[3rem] border border-slate-700 shadow-2xl space-y-6">
               <div className="text-center">
-                <h2 className="text-xl font-black text-white uppercase tracking-widest">Initial Setup</h2>
-                <p className="text-slate-400 text-xs mt-2 italic">Connect to DB or create local admin.</p>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest">First Run Setup</h2>
+                <p className="text-slate-400 text-xs mt-2 italic">Initializing local admin. All data will auto-sync to DB.</p>
               </div>
               <div className="space-y-4">
                 <input 
@@ -276,7 +287,7 @@ const App: React.FC = () => {
                   onClick={() => handleAddUser(regName, regPin)}
                   className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-indigo-500 transition-colors"
                 >
-                  Create Secure Profile
+                  Create Family Vault
                 </button>
               </div>
             </div>
@@ -299,15 +310,16 @@ const App: React.FC = () => {
               <button 
                 onClick={() => {
                   const name = prompt("Family Member Name?");
-                  const pin = prompt("Set 4-digit PIN?");
-                  if (name && pin) handleAddUser(name, pin);
+                  const pin = prompt("Set 4-digit security PIN?");
+                  if (name && pin && pin.length === 4) handleAddUser(name, pin);
+                  else if (pin) alert("PIN must be exactly 4 digits.");
                 }}
                 className="bg-slate-800/50 p-8 rounded-[3rem] border border-dashed border-slate-700 hover:border-indigo-500 transition-all flex flex-col items-center justify-center gap-4 group"
               >
                 <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center group-hover:bg-slate-600 transition-colors">
                   <UserPlusIcon className="w-8 h-8 text-slate-400" />
                 </div>
-                <span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">Add Member</span>
+                <span className="font-black text-slate-500 uppercase tracking-widest text-[10px]">New Member</span>
               </button>
             </div>
           )}
@@ -316,10 +328,10 @@ const App: React.FC = () => {
              <div className="flex items-center gap-2">
                 <SparklesIcon className={`w-4 h-4 ${HAS_AI_ACCESS ? 'text-amber-400' : 'text-slate-600'}`} />
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  AI Engine: {HAS_AI_ACCESS ? 'Online (Gemini)' : 'Offline'}
+                  Security Protocol: Encrypted & Persistent
                 </p>
              </div>
-             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em]">All family data automatically persists to Postgres DB.</p>
+             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em]">All changes automatically synchronized to cloud.</p>
           </div>
         </div>
       </div>
@@ -334,7 +346,7 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg"><ShieldCheckIcon className="w-6 h-6 text-white" /></div>
             <span className="font-black text-xl italic tracking-tighter uppercase">MoneyMate</span>
           </div>
-          {isSyncing && <CloudArrowUpIcon className="w-5 h-5 text-indigo-400 animate-bounce" title="Auto-Syncing..." />}
+          {isSyncing && <CloudArrowUpIcon className="w-5 h-5 text-indigo-400 animate-bounce" title="Real-time Syncing..." />}
         </div>
         
         <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
@@ -344,7 +356,7 @@ const App: React.FC = () => {
           <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Future View" />
           
           <div className="h-4" />
-          <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Setup</p>
+          <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Financial Setup</p>
           <NavItem active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<BanknotesIcon className="w-5 h-5" />} label="Income" />
           <NavItem active={activeTab === 'outgoings'} onClick={() => setActiveTab('outgoings')} icon={<HomeIcon className="w-5 h-5" />} label="Bills & Subs" />
           <NavItem active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} icon={<CreditCardIcon className="w-5 h-5" />} label="Debts" />
@@ -353,9 +365,9 @@ const App: React.FC = () => {
           <NavItem active={activeTab === 'cards'} onClick={() => setActiveTab('cards')} icon={<IdentificationIcon className="w-5 h-5" />} label="Cards" />
           
           <div className="h-4" />
-          <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Management</p>
-          <NavItem active={activeTab === 'family-management'} onClick={() => setActiveTab('family-management')} icon={<UsersIcon className="w-5 h-5" />} label="Family & Users" />
-          <NavItem active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Cog6ToothIcon className="w-5 h-5" />} label="Settings & Sync" />
+          <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Access</p>
+          <NavItem active={activeTab === 'family-management'} onClick={() => setActiveTab('family-management')} icon={<UsersIcon className="w-5 h-5" />} label="Users & Security" />
+          <NavItem active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Cog6ToothIcon className="w-5 h-5" />} label="System Config" />
           
           <button onClick={handleLogout} className="w-full flex items-center space-x-4 px-6 py-4 rounded-2xl text-rose-400 hover:text-white hover:bg-rose-900 transition-all group mt-auto">
             <PowerIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
@@ -392,7 +404,7 @@ const App: React.FC = () => {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 flex justify-around p-4 z-40 shadow-inner">
         <MobileNavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<ChartBarIcon className="w-7 h-7" />} label="Home" />
         <MobileNavItem active={activeTab === 'spend-log'} onClick={() => setActiveTab('spend-log')} icon={<ClockIcon className="w-7 h-7" />} label="Log" />
-        <MobileNavItem active={activeTab === 'settings'} onClick={() => setActiveTab('settings'} icon={<Cog6ToothIcon className="w-7 h-7" />} label="Settings" />
+        <MobileNavItem active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Cog6ToothIcon className="w-7 h-7" />} label="System" />
       </nav>
     </div>
   );

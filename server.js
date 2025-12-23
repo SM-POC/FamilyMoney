@@ -112,6 +112,7 @@ if (dbUrl) {
 
 /**
  * JIT Transpiler Middleware
+ * Corrects "Failed to load module" by ensuring strict application/javascript MIME types.
  */
 app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res, next) => {
   const cleanPath = req.path.split('?')[0];
@@ -151,7 +152,8 @@ app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(transformedCode);
   } catch (err) {
-    res.status(500).type('application/javascript').send(`console.error("Transpilation failed: ${err.message}");`);
+    console.error(`[MoneyMate] Transpilation Error [${relPath}]:`, err);
+    res.status(500).type('application/javascript').send(`console.error("Transpilation failed: ${err.message.replace(/"/g, '\\"')}");`);
   }
 });
 
@@ -228,6 +230,7 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
+    console.error('[MoneyMate] Push Failed:', err);
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
