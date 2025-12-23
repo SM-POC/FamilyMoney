@@ -17,10 +17,13 @@ const geminiKey = process.env.API_KEY || "";
 let pool = null;
 
 if (dbUrl) {
+  console.log('PostgreSQL database URL detected.');
   pool = new Pool({
     connectionString: dbUrl,
     ssl: { rejectUnauthorized: false }
   });
+} else {
+  console.warn('No DATABASE_URL found. Running in local-only mode.');
 }
 
 /**
@@ -33,15 +36,25 @@ app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
 
   let filePath = path.join(__dirname, req.path);
 
-  // If no extension, resolve to .tsx or .ts
+  // If no extension, try to resolve to .tsx or .ts
   if (!path.extname(filePath)) {
     if (fs.existsSync(filePath + '.tsx')) filePath += '.tsx';
     else if (fs.existsSync(filePath + '.ts')) filePath += '.ts';
     else return next();
   }
 
+  // Ensure it's not a directory
+  if (fs.existsSync(filePath) && fs.lstatSync(filePath).isDirectory()) {
+    return next();
+  }
+
   // Final check if file exists
-  if (!fs.existsSync(filePath)) return next();
+  if (!fs.existsSync(filePath)) {
+    console.warn(`File not found for transpilation: ${filePath}`);
+    return next();
+  }
+
+  console.log(`Transpiling: ${req.path} -> JS`);
 
   try {
     const code = fs.readFileSync(filePath, 'utf8');
@@ -50,7 +63,7 @@ app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
       format: 'esm',
       target: 'es2020',
       sourcemap: 'inline',
-      // This injects the API key directly into the code
+      minify: false,
       define: {
         'process.env.API_KEY': JSON.stringify(geminiKey),
         'process.env.NODE_ENV': '"production"'
@@ -58,7 +71,7 @@ app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
     });
 
     // CRITICAL: Rewrite imports to include extensions for browser ESM resolution
-    // Changes: import { X } from './View' -> import { X } from './View.tsx'
+    // Handles: import { X } from './View' OR import App from './App'
     const transformedCode = result.code.replace(
       /from\s+['"](\.\.?\/[^'"]+)(?<!\.(tsx|ts|js|css))['"]/g,
       (match, p1) => {
@@ -70,14 +83,12 @@ app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
       }
     );
 
-    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
     res.send(transformedCode);
   } catch (err) {
     console.error(`Transpilation Error [${req.path}]:`, err);
-    // Send back a self-alerting script so the user sees the error in the browser
     res.setHeader('Content-Type', 'application/javascript');
-    res.send(`console.error("Transpilation failed: ${err.message.replace(/"/g, '\\"')}"); 
-              alert("Code Error: Check console for ${req.path}");`);
+    res.send(`console.error("Transpilation failed for ${req.path}: ${err.message.replace(/"/g, '\\"')}");`);
   }
 });
 
@@ -141,7 +152,6 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   try {
     await client.query('BEGIN');
     const p = req.body;
-    // Clean slate for the sync (careful: this replaces local data with device data)
     await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM profile_config;');
 
     for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color) VALUES ($1, $2, $3, $4)', [u.id, u.name, u.role, u.avatarColor]);
@@ -163,12 +173,13 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   }
 });
 
-// Static Assets & Single Page Application Fallback
+// Static Assets
 app.use(express.static(path.join(__dirname, '.')));
 
+// SPA Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server live on PORT ${PORT}`));
+app.listen(PORT, () => console.log(`MoneyMate Server active on PORT ${PORT}`));
