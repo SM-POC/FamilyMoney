@@ -3,14 +3,16 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
+const esbuild = require('esbuild');
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Check for Database URL.
+// Database Setup
 const dbUrl = process.env.DATABASE_URL;
-const authKey = process.env.AUTH_KEY; // The secret password you set in Railway
+const authKey = process.env.AUTH_KEY;
 let pool = null;
 
 if (dbUrl) {
@@ -18,39 +20,64 @@ if (dbUrl) {
     connectionString: dbUrl,
     ssl: { rejectUnauthorized: false }
   });
-  console.log("Database connection initialized.");
-} else {
-  console.warn("WARNING: DATABASE_URL is missing. Cloud Sync features will be unavailable.");
 }
 
-// Middleware to check Auth Key
-const validateAuth = (req, res, next) => {
-  // If no AUTH_KEY is set in environment, we allow requests (convenience for initial setup)
-  if (!authKey) return next();
+// JIT Transpiler Middleware for .tsx and .ts files
+app.get(/\.(tsx|ts)$/, async (req, res, next) => {
+  const filePath = path.join(__dirname, req.path);
+  
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
 
+  try {
+    const code = fs.readFileSync(filePath, 'utf8');
+    const result = await esbuild.transform(code, {
+      loader: req.path.endsWith('.tsx') ? 'tsx' : 'ts',
+      format: 'esm',
+      target: 'es2020',
+      sourcemap: 'inline'
+    });
+
+    // Solve ESM extension issues: transform 'from "./App"' into 'from "./App.tsx"'
+    // This allows the browser to find the files without explicit extensions in code
+    const transformedCode = result.code.replace(
+      /from\s+['"](\.\.?\/[^'"]+)(?<!\.(tsx|ts|js|css))['"]/g,
+      (match, p1) => {
+        const potentialTsx = path.join(path.dirname(filePath), p1 + '.tsx');
+        const potentialTs = path.join(path.dirname(filePath), p1 + '.ts');
+        if (fs.existsSync(potentialTsx)) return `from "${p1}.tsx"`;
+        if (fs.existsSync(potentialTs)) return `from "${p1}.ts"`;
+        return match;
+      }
+    );
+
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(transformedCode);
+  } catch (err) {
+    console.error('Transpilation Error:', err);
+    res.status(500).send(err.message);
+  }
+});
+
+// Auth & DB Middlewares
+const validateAuth = (req, res, next) => {
+  if (!authKey) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader || authHeader !== `Bearer ${authKey}`) {
-    return res.status(401).json({ error: 'Unauthorized', details: 'Invalid or missing API Security Token.' });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
 };
 
-// Middleware to check DB availability
 const checkDb = (req, res, next) => {
-  if (!pool) {
-    return res.status(503).json({ 
-      error: 'Database not configured', 
-      details: 'This server instance is not linked to a PostgreSQL database.' 
-    });
-  }
+  if (!pool) return res.status(503).json({ error: 'Database not configured' });
   next();
 };
 
-// Health check for frontend
+// API Endpoints
 app.get('/api/health', async (req, res) => {
-  if (!pool) {
-    return res.json({ status: 'warning', database: 'not_configured', message: 'Running without persistent storage.' });
-  }
+  if (!pool) return res.json({ status: 'warning', database: 'not_configured' });
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', database: 'connected' });
@@ -59,7 +86,6 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// PULL: Fetch all data
 app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
   try {
     const users = await pool.query('SELECT * FROM users');
@@ -71,7 +97,7 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
     const lent = await pool.query('SELECT * FROM lent_money');
     const config = await pool.query('SELECT * FROM profile_config LIMIT 1');
 
-    const profile = {
+    res.json({
       users: users.rows,
       debts: debts.rows,
       expenses: expenses.rows,
@@ -83,58 +109,26 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
       savingsBuffer: config.rows[0]?.savings_buffer || 0,
       strategy: config.rows[0]?.strategy || 'Avalanche (Save Interest)',
       paymentLogs: []
-    };
-
-    res.json(profile);
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUSH: Save all data
 app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const p = req.body;
+    await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM profile_config;');
 
-    await client.query('DELETE FROM users');
-    await client.query('DELETE FROM debts');
-    await client.query('DELETE FROM expenses');
-    await client.query('DELETE FROM income');
-    await client.query('DELETE FROM goals');
-    await client.query('DELETE FROM cards');
-    await client.query('DELETE FROM lent_money');
-    await client.query('DELETE FROM profile_config');
-
-    for (const u of p.users) {
-      await client.query('INSERT INTO users (id, name, role, avatar_color) VALUES ($1, $2, $3, $4)', [u.id, u.name, u.role, u.avatarColor]);
-    }
-    
-    for (const d of p.debts) {
-      await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
-    }
-
-    for (const e of p.expenses) {
-      await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
-    }
-
-    for (const i of p.income) {
-      await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
-    }
-
-    for (const g of p.goals) {
-      await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
-    }
-
-    for (const c of p.cards) {
-      await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
-    }
-
-    for (const l of (p.lentMoney || [])) {
-      await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
-    }
-
+    for (const u of p.users) await client.query('INSERT INTO users (id, name, role, avatar_color) VALUES ($1, $2, $3, $4)', [u.id, u.name, u.role, u.avatarColor]);
+    for (const d of p.debts) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
+    for (const e of p.expenses) await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
+    for (const i of p.income) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
+    for (const g of p.goals) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
+    for (const c of p.cards) await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
+    for (const l of (p.lentMoney || [])) await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
     await client.query('INSERT INTO profile_config (luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3)', [p.luxuryBudget, p.savingsBuffer, p.strategy]);
 
     await client.query('COMMIT');
@@ -147,11 +141,11 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   }
 });
 
-// Serve static frontend
+// Static Assets
 app.use(express.static(path.join(__dirname, '.')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server live on ${PORT}`));
