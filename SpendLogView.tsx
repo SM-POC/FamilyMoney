@@ -19,9 +19,11 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
 }) => {
   const [editingItemId, setEditingItemId] = React.useState<string | null>(null);
   const [editCategory, setEditCategory] = React.useState<string>("");
+  const [scanError, setScanError] = React.useState<string | null>(null);
 
   const groupedSpendLog = React.useMemo(() => {
-    const nonRecurring = profile.expenses.filter(e => !e.isRecurring);
+    // Show only discretionary/one-off spend (exclude bills/subscriptions)
+    const nonRecurring = profile.expenses.filter(e => !e.isRecurring && !e.isSubscription);
     const groups: Record<string, { merchant: string; date: string; total: number; cardId?: string; cardLast4?: string; cardOwner?: string; items: Expense[]; isReceipt: boolean }> = {};
     nonRecurring.forEach(exp => {
       const card = profile.cards.find(c => c.id === exp.cardId);
@@ -59,13 +61,15 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if(!f) return;
     setIsScanning(true);
+    setScanError(null);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
         const res = await scanReceipt(ev.target?.result as string);
         setReceiptReview({ ...res, items: res.items.map((i: any) => ({ ...i, id: Math.random().toString() })) });
       } catch(err) {
-        alert("Scan failed.");
+        console.error("Scan failed:", err);
+        setScanError("Receipt scan failed. Please try again or enter manually.");
       } finally {
         setIsScanning(false);
       }
@@ -167,6 +171,7 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
               <div className="mt-6 p-4 bg-indigo-50 rounded-2xl">
                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">AI Ready</p>
                  <p className="text-[10px] text-indigo-900 italic leading-tight">Scanning receipts automatically categorises items and detects the card used for the purchase.</p>
+                 {scanError && <p className="text-[10px] text-rose-600 font-black uppercase tracking-widest mt-2">{scanError}</p>}
               </div>
             </>
           ) : (
