@@ -145,7 +145,21 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
         password: u.password
       })),
       debts: debts.rows.map(d => ({ ...d, interestRate: parseFloat(d.interest_rate), minimumPayment: parseFloat(d.minimum_payment), balance: parseFloat(d.balance) })),
-      expenses: expenses.rows.map(e => ({ ...e, amount: parseFloat(e.amount) })),
+      expenses: expenses.rows.map(e => ({
+        id: e.id,
+        category: e.category,
+        description: e.description,
+        amount: parseFloat(e.amount),
+        isRecurring: e.is_recurring === null ? false : e.is_recurring,
+        isSubscription: e.is_subscription === null ? false : e.is_subscription,
+        date: e.date || '',
+        merchant: e.merchant || null,
+        receiptId: e.receipt_id || null,
+        cardId: e.card_id || null,
+        cardLast4: e.card_last4 || null,
+        contractEndDate: e.contract_end_date || null,
+        userId: e.user_id || null
+      })),
       income: income.rows.map(i => ({ ...i, amount: parseFloat(i.amount) })),
       goals: goals.rows.map(g => ({ ...g, targetAmount: parseFloat(g.target_amount), currentAmount: parseFloat(g.current_amount) })),
       cards: cards.rows,
@@ -170,7 +184,24 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
 
     for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color, password) VALUES ($1, $2, $3, $4, $5)', [u.id, u.name, u.role, u.avatarColor, u.password || null]);
     for (const d of (p.debts || [])) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
-    for (const e of (p.expenses || [])) await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
+    for (const e of (p.expenses || [])) await client.query(
+      'INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, date, merchant, receipt_id, card_id, card_last4, contract_end_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)',
+      [
+        e.id,
+        e.category,
+        e.description,
+        e.amount,
+        e.isRecurring === undefined ? false : e.isRecurring,
+        e.isSubscription === undefined ? false : e.isSubscription,
+        e.date || null,
+        e.merchant || null,
+        e.receiptId || null,
+        e.cardId || null,
+        e.cardLast4 || null,
+        e.contractEndDate || null,
+        e.userId || null
+      ]
+    );
     for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
     for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
     for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
