@@ -121,11 +121,22 @@ const App: React.FC = () => {
     profileRef.current = profile;
   }, [profile]);
 
+  // Update local profile state only (no DB push)
+  const setProfileLocal: React.Dispatch<React.SetStateAction<UserFinancialProfile>> = useCallback((update) => {
+    setProfileState(prev => {
+      const next = typeof update === 'function' ? (update as (p: UserFinancialProfile) => UserFinancialProfile)(prev) : update;
+      profileRef.current = next;
+      return next;
+    });
+  }, []);
+
   // Centralized DB-first updater: apply change, push to DB, then re-pull to refresh state from server
   const setProfile: React.Dispatch<React.SetStateAction<UserFinancialProfile>> = useCallback(async (update) => {
     setIsSyncing(true);
     try {
       const next = typeof update === 'function' ? (update as (p: UserFinancialProfile) => UserFinancialProfile)(profileRef.current) : update;
+      profileRef.current = next;
+      setProfileState(next);
       await syncPush('', AUTH_KEY, next);
       const remote = await syncPull('', AUTH_KEY);
       if (remote) setProfileState(p => ({ ...p, ...remote }));
@@ -176,7 +187,7 @@ const App: React.FC = () => {
   useEffect(() => { if (isLoggedIn) fetchAdvice(); }, [isLoggedIn, fetchAdvice]);
 
   const handleLogout = () => {
-    setProfile(p => ({ ...p, currentUserId: undefined }));
+    setProfileLocal(p => ({ ...p, currentUserId: undefined }));
     setSelectedLoginUser(null);
     setPasswordEntry('');
     setLoginError(null);
@@ -191,7 +202,7 @@ const App: React.FC = () => {
     }
 
     if (passwordEntry === storedPassword) {
-      setProfile(p => ({ ...p, currentUserId: selectedLoginUser.id }));
+      setProfileLocal(p => ({ ...p, currentUserId: selectedLoginUser.id }));
       setLoginError(null);
       setPasswordEntry('');
     } else {
