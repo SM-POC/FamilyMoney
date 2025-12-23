@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Database & Auth Setup
+// Environment Config
 const dbUrl = process.env.DATABASE_URL;
 const authKey = process.env.AUTH_KEY;
 const geminiKey = process.env.API_KEY || "";
@@ -25,26 +25,23 @@ if (dbUrl) {
 
 /**
  * JIT Transpiler Middleware
- * Intercepts requests for .tsx, .ts, or extension-less files that exist as TSX/TS.
+ * Automatically converts TSX/TS to JS and fixes ESM import paths.
  */
-app.get('*', async (req, res, next) => {
+app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
   // Skip API routes
   if (req.path.startsWith('/api')) return next();
-  
-  // Determine physical file path
+
   let filePath = path.join(__dirname, req.path);
-  
-  // If the request doesn't have an extension, try to find a matching .tsx or .ts file
+
+  // If no extension, resolve to .tsx or .ts
   if (!path.extname(filePath)) {
     if (fs.existsSync(filePath + '.tsx')) filePath += '.tsx';
     else if (fs.existsSync(filePath + '.ts')) filePath += '.ts';
-    else return next(); // Not a TS/TSX file, let express.static handle it
+    else return next();
   }
 
-  // Only handle .tsx and .ts files
-  if (!filePath.endsWith('.tsx') && !filePath.endsWith('.ts')) {
-    return next();
-  }
+  // Final check if file exists
+  if (!fs.existsSync(filePath)) return next();
 
   try {
     const code = fs.readFileSync(filePath, 'utf8');
@@ -53,17 +50,34 @@ app.get('*', async (req, res, next) => {
       format: 'esm',
       target: 'es2020',
       sourcemap: 'inline',
+      // This injects the API key directly into the code
       define: {
         'process.env.API_KEY': JSON.stringify(geminiKey),
         'process.env.NODE_ENV': '"production"'
       }
     });
 
+    // CRITICAL: Rewrite imports to include extensions for browser ESM resolution
+    // Changes: import { X } from './View' -> import { X } from './View.tsx'
+    const transformedCode = result.code.replace(
+      /from\s+['"](\.\.?\/[^'"]+)(?<!\.(tsx|ts|js|css))['"]/g,
+      (match, p1) => {
+        const potentialTsx = path.join(path.dirname(filePath), p1 + '.tsx');
+        const potentialTs = path.join(path.dirname(filePath), p1 + '.ts');
+        if (fs.existsSync(potentialTsx)) return `from "${p1}.tsx"`;
+        if (fs.existsSync(potentialTs)) return `from "${p1}.ts"`;
+        return match;
+      }
+    );
+
     res.setHeader('Content-Type', 'application/javascript');
-    res.send(result.code);
+    res.send(transformedCode);
   } catch (err) {
-    console.error(`Transpilation Error at ${req.path}:`, err);
-    res.status(500).send(`Error transpiling ${req.path}: ${err.message}`);
+    console.error(`Transpilation Error [${req.path}]:`, err);
+    // Send back a self-alerting script so the user sees the error in the browser
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(`console.error("Transpilation failed: ${err.message.replace(/"/g, '\\"')}"); 
+              alert("Code Error: Check console for ${req.path}");`);
   }
 });
 
@@ -127,16 +141,17 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   try {
     await client.query('BEGIN');
     const p = req.body;
+    // Clean slate for the sync (careful: this replaces local data with device data)
     await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM profile_config;');
 
-    for (const u of p.users) await client.query('INSERT INTO users (id, name, role, avatar_color) VALUES ($1, $2, $3, $4)', [u.id, u.name, u.role, u.avatarColor]);
-    for (const d of p.debts) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
-    for (const e of p.expenses) await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
-    for (const i of p.income) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
-    for (const g of p.goals) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
-    for (const c of p.cards) await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
+    for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color) VALUES ($1, $2, $3, $4)', [u.id, u.name, u.role, u.avatarColor]);
+    for (const d of (p.debts || [])) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
+    for (const e of (p.expenses || [])) await client.query('INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, contract_end_date) VALUES ($1, $2, $3, $4, $5, $6, $7)', [e.id, e.category, e.description, e.amount, e.isRecurring, e.isSubscription || false, e.contractEndDate || null]);
+    for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount) VALUES ($1, $2, $3)', [i.id, i.source, i.amount]);
+    for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date) VALUES ($1, $2, $3, $4, $5, $6)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null]);
+    for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner) VALUES ($1, $2, $3, $4)', [c.id, c.name, c.last4, c.owner || null]);
     for (const l of (p.lentMoney || [])) await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
-    await client.query('INSERT INTO profile_config (luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3)', [p.luxuryBudget, p.savingsBuffer, p.strategy]);
+    await client.query('INSERT INTO profile_config (luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3)', [p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)']);
 
     await client.query('COMMIT');
     res.json({ success: true });
@@ -148,11 +163,12 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   }
 });
 
-// Static Assets & SPA Fallback
+// Static Assets & Single Page Application Fallback
 app.use(express.static(path.join(__dirname, '.')));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server live on ${PORT}`));
+app.listen(PORT, () => console.log(`Server live on PORT ${PORT}`));
