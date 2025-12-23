@@ -35,7 +35,7 @@ import {
 } from './types';
 import { calculatePayoffSchedule } from './debtCalculator';
 import { getFinancialAdvice, HAS_AI_ACCESS } from './geminiService';
-import { syncPull } from './apiService';
+import { syncPush, syncPull } from './apiService';
 
 // Import Modular Views
 import { NavItem, MobileNavItem } from './SharedComponents';
@@ -72,12 +72,13 @@ const EMPTY_PROFILE: UserFinancialProfile = {
 };
 
 const App: React.FC = () => {
-  const [profile, setProfile] = useState<UserFinancialProfile>(EMPTY_PROFILE);
+  const [profile, setProfileState] = useState<UserFinancialProfile>(EMPTY_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
+  const profileRef = useRef<UserFinancialProfile>(EMPTY_PROFILE);
   const [advice, setAdvice] = useState<string>("");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [receiptReview, setReceiptReview] = useState<ReceiptReviewState | null>(null);
@@ -100,7 +101,7 @@ const App: React.FC = () => {
       console.log("[MoneyMate] Pulling with key security...");
       const remote = await syncPull('', AUTH_KEY); 
       if (remote) {
-        setProfile(p => ({ ...p, ...remote }));
+        setProfileState(p => ({ ...p, ...remote }));
         setConnectionStatus('success');
       }
     } catch (e: any) { 
@@ -115,6 +116,28 @@ const App: React.FC = () => {
   useEffect(() => {
     refreshFromDb();
   }, [refreshFromDb]);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  // Centralized DB-first updater: apply change, push to DB, then re-pull to refresh state from server
+  const setProfile: React.Dispatch<React.SetStateAction<UserFinancialProfile>> = useCallback(async (update) => {
+    setIsSyncing(true);
+    try {
+      const next = typeof update === 'function' ? (update as (p: UserFinancialProfile) => UserFinancialProfile)(profileRef.current) : update;
+      await syncPush('', AUTH_KEY, next);
+      const remote = await syncPull('', AUTH_KEY);
+      if (remote) setProfileState(p => ({ ...p, ...remote }));
+      setConnectionStatus('success');
+    } catch (e: any) {
+      console.error("[MoneyMate] Sync failed:", e.message);
+      setConnectionStatus('failed');
+      setConnectionError(e.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
 
   const schedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
   const totalDebt = (profile.debts || []).reduce((acc, d) => acc + d.balance, 0);
