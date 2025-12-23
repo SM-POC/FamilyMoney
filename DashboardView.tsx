@@ -1,9 +1,8 @@
 
 import React from 'react';
-import { CreditCardIcon, HandRaisedIcon, BanknotesIcon, FlagIcon, UserGroupIcon, SparklesIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { CreditCardIcon, HandRaisedIcon, BanknotesIcon, FlagIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { StatCard } from './SharedComponents';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { HAS_AI_ACCESS } from './geminiService';
 
 interface DashboardViewProps {
   totalDebt: number;
@@ -11,13 +10,10 @@ interface DashboardViewProps {
   surplus: number;
   freedomDate: string;
   cardSpendData: any[];
-  advice: string;
-  loadingAdvice: boolean;
-  onRefreshAdvice: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ 
-  totalDebt, totalLent, surplus, freedomDate, cardSpendData, advice, loadingAdvice, onRefreshAdvice 
+  totalDebt, totalLent, surplus, freedomDate, cardSpendData 
 }) => (
   <div className="space-y-8 animate-in fade-in duration-500">
     <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -29,8 +25,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <StatCard title="Oxygen (Surplus)" value={`£${surplus.toLocaleString()}`} icon={<BanknotesIcon className="w-6 h-6" />} color="bg-emerald-50 text-emerald-600" />
       <StatCard title="Freedom Date" value={freedomDate} icon={<FlagIcon className="w-6 h-6" />} color="bg-indigo-50 text-indigo-600" />
     </div>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl">
+    <div className="grid grid-cols-1 gap-8">
+      <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl">
         <h3 className="text-xl font-black mb-10 flex items-center"><UserGroupIcon className="w-6 h-6 mr-3 text-indigo-500" /> Family Spending Mix</h3>
         <div className="h-72 flex items-center gap-12">
           <div className="flex-1 h-full">
@@ -56,23 +52,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
-      
-      {HAS_AI_ACCESS ? (
-        <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden">
-          <h3 className="text-xl font-black mb-8 flex items-center"><SparklesIcon className="w-6 h-6 mr-3 text-amber-400" /> Strategy Insight</h3>
-          <p className="text-slate-400 text-sm leading-relaxed italic">"{advice || "Add data to generate AI insights."}"</p>
-          <button onClick={onRefreshAdvice} className="mt-6 flex items-center space-x-2 text-[10px] font-black uppercase text-indigo-400 tracking-widest">
-            <ArrowPathIcon className={`w-4 h-4 ${loadingAdvice ? 'animate-spin' : ''}`} /> 
-            <span>Refresh Insight</span>
-          </button>
-        </div>
-      ) : (
-        <div className="bg-slate-100 p-10 rounded-[3rem] border border-slate-200 flex flex-col items-center justify-center text-center space-y-4">
-          <ExclamationCircleIcon className="w-10 h-10 text-slate-300" />
-          <p className="text-slate-400 text-xs font-black uppercase tracking-widest leading-relaxed">AI Intelligence Disabled</p>
-          <p className="text-slate-400 text-[10px] italic">Strategic insights require a valid API key configuration.</p>
-        </div>
-      )}
     </div>
   </div>
 );

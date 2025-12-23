@@ -34,7 +34,6 @@ import {
   FamilyUser
 } from './types';
 import { calculatePayoffSchedule } from './debtCalculator';
-import { getFinancialAdvice, HAS_AI_ACCESS } from './geminiService';
 import { syncPush, syncPull } from './apiService';
 
 // Import Modular Views
@@ -79,8 +78,6 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const profileRef = useRef<UserFinancialProfile>(EMPTY_PROFILE);
-  const [advice, setAdvice] = useState<string>("");
-  const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [receiptReview, setReceiptReview] = useState<ReceiptReviewState | null>(null);
   const [expandedReceiptId, setExpandedReceiptId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -171,20 +168,6 @@ const App: React.FC = () => {
     });
     return Object.values(map).filter(d => d.amount > 0);
   }, [profile.expenses, profile.cards]);
-
-  const fetchAdvice = useCallback(async () => {
-    if (!HAS_AI_ACCESS) return;
-    if (totalIncome === 0 && totalDebt === 0) {
-      setAdvice("Enter your financial details to receive AI tips.");
-      return;
-    }
-    setLoadingAdvice(true);
-    const res = await getFinancialAdvice(`Debt: £${totalDebt}, Income: £${totalIncome}, Subs: £${totalSubSpend}`);
-    setAdvice(res);
-    setLoadingAdvice(false);
-  }, [totalDebt, totalIncome, totalSubSpend]);
-
-  useEffect(() => { if (isLoggedIn) fetchAdvice(); }, [isLoggedIn, fetchAdvice]);
 
   const handleLogout = () => {
     setProfileLocal(p => ({ ...p, currentUserId: undefined }));
@@ -424,7 +407,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
-        {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} advice={advice} loadingAdvice={loadingAdvice} onRefreshAdvice={fetchAdvice} />}
+        {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'spend-log' && (

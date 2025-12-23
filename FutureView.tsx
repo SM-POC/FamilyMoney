@@ -15,7 +15,7 @@ interface FutureViewProps {
   profile: UserFinancialProfile;
 }
 
-const currency = (value: number) => `稖${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const currency = (value: number) => `£${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
 export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile }) => {
   const [mode, setMode] = useState<'funds' | 'date'>('funds');
