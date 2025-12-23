@@ -7,6 +7,7 @@ import { scanReceipt, HAS_AI_ACCESS } from './geminiService';
 interface SpendLogViewProps {
   profile: UserFinancialProfile;
   setProfile: React.Dispatch<React.SetStateAction<UserFinancialProfile>>;
+  receiptReview: ReceiptReviewState | null;
   setReceiptReview: (review: ReceiptReviewState | null) => void;
   isScanning: boolean;
   setIsScanning: (scanning: boolean) => void;
@@ -15,11 +16,21 @@ interface SpendLogViewProps {
 }
 
 export const SpendLogView: React.FC<SpendLogViewProps> = ({ 
-  profile, setProfile, setReceiptReview, isScanning, setIsScanning, expandedReceiptId, setExpandedReceiptId 
+  profile, setProfile, receiptReview, setReceiptReview, isScanning, setIsScanning, expandedReceiptId, setExpandedReceiptId 
 }) => {
   const [editingItemId, setEditingItemId] = React.useState<string | null>(null);
   const [editCategory, setEditCategory] = React.useState<string>("");
   const [scanError, setScanError] = React.useState<string | null>(null);
+  const [selectedCardId, setSelectedCardId] = React.useState<string | undefined>(undefined);
+
+  React.useEffect(() => {
+    if (receiptReview) {
+      const match = profile.cards.find(c => c.last4 === receiptReview.cardLast4);
+      setSelectedCardId(match?.id || profile.cards[0]?.id);
+    } else {
+      setSelectedCardId(undefined);
+    }
+  }, [receiptReview, profile.cards]);
 
   const groupedSpendLog = React.useMemo(() => {
     // Show only discretionary/one-off spend (exclude bills/subscriptions)
@@ -66,6 +77,9 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
     reader.onload = async (ev) => {
       try {
         const res = await scanReceipt(ev.target?.result as string);
+        if (!res || !Array.isArray(res.items) || res.items.length === 0) {
+          throw new Error("No line items returned from AI.");
+        }
         setReceiptReview({ ...res, items: res.items.map((i: any) => ({ ...i, id: Math.random().toString() })) });
       } catch(err) {
         console.error("Scan failed:", err);
@@ -85,9 +99,102 @@ export const SpendLogView: React.FC<SpendLogViewProps> = ({
     setEditingItemId(null);
   };
 
+  const updateReceiptItemCategory = (itemId: string, category: string) => {
+    setReceiptReview(prev => prev ? { ...prev, items: prev.items.map(i => i.id === itemId ? { ...i, category } : i) } : prev);
+  };
+
+  const saveReceiptToExpenses = () => {
+    if (!receiptReview) return;
+    const receiptId = `rcpt-${Date.now()}`;
+    const card = profile.cards.find(c => c.id === selectedCardId) || profile.cards.find(c => c.last4 === receiptReview.cardLast4);
+    const date = receiptReview.date || new Date().toISOString().slice(0, 10);
+
+    const newExpenses: Expense[] = receiptReview.items.map(item => ({
+      id: `exp-${Math.random().toString(36).slice(2, 9)}`,
+      category: item.category || 'Uncategorized',
+      description: item.description,
+      amount: Number(item.amount) || 0,
+      isRecurring: false,
+      date,
+      merchant: receiptReview.merchant,
+      receiptId,
+      cardId: card?.id,
+      cardLast4: card?.last4 || receiptReview.cardLast4 || undefined,
+      isSubscription: false
+    }));
+
+    setProfile(p => ({ ...p, expenses: [...p.expenses, ...newExpenses] }));
+    setReceiptReview(null);
+    setSelectedCardId(undefined);
+    setExpandedReceiptId(receiptId);
+  };
+
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-500">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-8"><h1 className="text-4xl font-black text-slate-900 tracking-tight">Spend Log</h1></header>
+
+      {receiptReview && (
+        <div className="bg-white p-8 rounded-[3rem] border border-indigo-100 shadow-xl space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Receipt ready to save</p>
+              <h3 className="text-2xl font-black text-slate-900">{receiptReview.merchant || 'Receipt'}</h3>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{receiptReview.date}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setReceiptReview(null)} className="px-4 py-3 rounded-2xl border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Discard
+              </button>
+              <button onClick={saveReceiptToExpenses} className="px-5 py-3 rounded-2xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500">
+                Save to Spend Log
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Payment Card</label>
+              <select
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                value={selectedCardId || ''}
+                onChange={e => setSelectedCardId(e.target.value || undefined)}
+              >
+                <option value="">No card</option>
+                {profile.cards.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} •••• {c.last4}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Detected last4</label>
+              <input
+                value={receiptReview.cardLast4 || 'N/A'}
+                readOnly
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 font-black text-sm text-slate-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Line items</p>
+            {receiptReview.items.map(item => (
+              <div key={item.id} className="flex flex-col md:flex-row md:items-center gap-3 bg-slate-50 rounded-2xl p-4">
+                <div className="flex-1">
+                  <p className="font-black text-slate-900">{item.description}</p>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">£{Number(item.amount).toFixed(2)}</p>
+                </div>
+                <input
+                  className="w-full md:w-48 bg-white border border-slate-200 rounded-2xl p-3 font-black text-sm"
+                  value={item.category || ''}
+                  onChange={e => updateReceiptItemCategory(item.id, e.target.value)}
+                  placeholder="Category"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-6">
           {groupedSpendLog.length === 0 && (

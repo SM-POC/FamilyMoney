@@ -412,7 +412,18 @@ const App: React.FC = () => {
         {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} advice={advice} loadingAdvice={loadingAdvice} onRefreshAdvice={fetchAdvice} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
-        {activeTab === 'spend-log' && <SpendLogView profile={profile} setProfile={setProfile} setReceiptReview={setReceiptReview} isScanning={isScanning} setIsScanning={setIsScanning} expandedReceiptId={expandedReceiptId} setExpandedReceiptId={setExpandedReceiptId} />}
+        {activeTab === 'spend-log' && (
+          <SpendLogView 
+            profile={profile} 
+            setProfile={setProfile} 
+            receiptReview={receiptReview}
+            setReceiptReview={setReceiptReview} 
+            isScanning={isScanning} 
+            setIsScanning={setIsScanning} 
+            expandedReceiptId={expandedReceiptId} 
+            setExpandedReceiptId={setExpandedReceiptId} 
+          />
+        )}
         {activeTab === 'planner' && <FutureView schedule={schedule} />}
         {activeTab === 'payment-tracker' && <PaymentTrackerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'income' && <IncomeHubView profile={profile} setProfile={setProfile} />}
