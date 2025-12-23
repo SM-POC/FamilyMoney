@@ -20,7 +20,11 @@ import {
   LockClosedIcon,
   CloudArrowUpIcon,
   ExclamationCircleIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  SignalIcon,
+  NoSymbolIcon,
+  CheckCircleIcon,
+  WifiIcon
 } from '@heroicons/react/24/outline';
 import { 
   Expense, 
@@ -68,6 +72,7 @@ const EMPTY_PROFILE: UserFinancialProfile = {
 const App: React.FC = () => {
   const [profile, setProfile] = useState<UserFinancialProfile>(EMPTY_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const [advice, setAdvice] = useState<string>("");
@@ -86,14 +91,17 @@ const App: React.FC = () => {
   // Initial Data Pull - Primary source of users
   const refreshFromDb = useCallback(async () => {
     setIsLoading(true);
+    setConnectionStatus('loading');
     try {
       console.log("[MoneyMate] Fetching database users...");
       const remote = await syncPull('', ''); 
       if (remote) {
         setProfile(p => ({ ...p, ...remote }));
+        setConnectionStatus('success');
       }
     } catch (e) { 
       console.error("[MoneyMate] Could not connect to database for login.", e); 
+      setConnectionStatus('failed');
     } finally {
       setIsLoading(false);
     }
@@ -191,92 +199,137 @@ const App: React.FC = () => {
               <ShieldCheckIcon className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">MoneyMate</h1>
-            <p className="text-slate-400 font-medium">PostgreSQL Secure Access</p>
+            <p className="text-slate-400 font-medium tracking-wide">Family Financial Planner</p>
+            
+            {/* Status Badges */}
+            <div className="flex justify-center gap-2 mt-4">
+              {connectionStatus === 'success' && (
+                <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-2">
+                  <CheckCircleIcon className="w-3.5 h-3.5" />
+                  Database Online
+                </div>
+              )}
+              {connectionStatus === 'failed' && (
+                <div className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-500 px-3 py-1 rounded-full border border-rose-500/20 text-[9px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-2">
+                  <NoSymbolIcon className="w-3.5 h-3.5" />
+                  Connection Offline
+                </div>
+              )}
+              {connectionStatus === 'loading' && (
+                <div className="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20 text-[9px] font-black uppercase tracking-widest animate-pulse">
+                  <WifiIcon className="w-3.5 h-3.5" />
+                  Linking Vault...
+                </div>
+              )}
+            </div>
           </div>
 
-          {isLoading ? (
-            <div className="flex flex-col items-center gap-4 text-white">
-              <ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500" />
-              <p className="text-xs font-black uppercase tracking-[0.3em]">Querying Database...</p>
-            </div>
-          ) : selectedLoginUser ? (
-            <div className="bg-slate-800 p-10 rounded-[3rem] border border-slate-700 shadow-2xl space-y-8 text-center animate-in slide-in-from-bottom-4">
-              <div className="flex flex-col items-center gap-4">
-                <div className={`w-24 h-24 rounded-full ${selectedLoginUser.avatarColor} flex items-center justify-center shadow-xl text-white`}>
-                   <UserCircleIcon className="w-16 h-16" />
+          <div className="bg-slate-800 p-10 rounded-[3rem] border border-slate-700 shadow-2xl space-y-8 min-h-[400px] flex flex-col justify-center">
+            {isLoading ? (
+              <div className="flex flex-col items-center gap-6 text-white">
+                <ArrowPathIcon className="w-12 h-12 animate-spin text-indigo-500" />
+                <div className="text-center">
+                  <p className="text-xs font-black uppercase tracking-[0.4em]">Querying Engine</p>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Authenticating with PostgreSQL...</p>
+                </div>
+              </div>
+            ) : connectionStatus === 'failed' ? (
+              <div className="text-center space-y-6 animate-in zoom-in">
+                <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <ExclamationCircleIcon className="w-10 h-10" />
                 </div>
                 <div>
-                   <h2 className="text-2xl font-black text-white uppercase tracking-widest">{selectedLoginUser.name}</h2>
-                   <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Input 4-Digit Security PIN</p>
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest">PostgreSQL Failed</h2>
+                  <p className="text-slate-400 text-[10px] mt-2 italic leading-relaxed px-4">The application could not establish a secure handshake with the database. Please verify your environment variables.</p>
                 </div>
+                <button 
+                  onClick={refreshFromDb}
+                  className="bg-rose-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-xl shadow-rose-900/20"
+                >
+                  Reconnect to Vault
+                </button>
               </div>
+            ) : selectedLoginUser ? (
+              <div className="text-center space-y-8 animate-in slide-in-from-bottom-4">
+                <div className="flex flex-col items-center gap-4">
+                  <div className={`w-24 h-24 rounded-full ${selectedLoginUser.avatarColor} flex items-center justify-center shadow-xl text-white ring-4 ring-slate-700 ring-offset-4 ring-offset-slate-800`}>
+                     <UserCircleIcon className="w-16 h-16" />
+                  </div>
+                  <div>
+                     <h2 className="text-2xl font-black text-white uppercase tracking-widest">{selectedLoginUser.name}</h2>
+                     <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">Verify Identity</p>
+                  </div>
+                </div>
 
-              <div className="flex justify-center gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${pinEntry.length > i ? 'bg-indigo-500 border-indigo-500 scale-125' : 'border-slate-600'}`} />
-                ))}
-              </div>
+                <div className="flex justify-center gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all ${pinEntry.length > i ? 'bg-indigo-500 border-indigo-500 scale-125' : 'border-slate-600'}`} />
+                  ))}
+                </div>
 
-              {loginError && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest animate-bounce">Access Denied: Incorrect PIN</p>}
+                {loginError && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest animate-bounce">Invalid PIN Entry</p>}
 
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                  <button key={n} onClick={() => {
-                    const next = pinEntry + n;
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                    <button key={n} onClick={() => {
+                      const next = pinEntry + n;
+                      if (next.length <= 4) setPinEntry(next);
+                      if (next.length === 4) handlePinSubmit(next);
+                    }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors shadow-sm">{n}</button>
+                  ))}
+                  <button onClick={() => { setSelectedLoginUser(null); setPinEntry(''); setLoginError(false); }} className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-[10px] uppercase tracking-widest">Cancel</button>
+                  <button onClick={() => {
+                    const next = pinEntry + '0';
                     if (next.length <= 4) setPinEntry(next);
                     if (next.length === 4) handlePinSubmit(next);
-                  }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors">{n}</button>
-                ))}
-                <button onClick={() => { setSelectedLoginUser(null); setPinEntry(''); setLoginError(false); }} className="h-16 bg-slate-800 rounded-2xl text-rose-500 font-black text-xs uppercase tracking-widest">Back</button>
-                <button onClick={() => {
-                  const next = pinEntry + '0';
-                  if (next.length <= 4) setPinEntry(next);
-                  if (next.length === 4) handlePinSubmit(next);
-                }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors">0</button>
-                <button onClick={() => setPinEntry(pinEntry.slice(0, -1))} className="h-16 bg-slate-800 rounded-2xl text-slate-400 font-black text-xs uppercase tracking-widest">Del</button>
+                  }} className="h-16 bg-slate-700/50 rounded-2xl text-xl font-black text-white hover:bg-indigo-600 transition-colors shadow-sm">0</button>
+                  <button onClick={() => setPinEntry(pinEntry.slice(0, -1))} className="h-16 bg-slate-800 rounded-2xl text-slate-400 font-black text-[10px] uppercase tracking-widest">Delete</button>
+                </div>
               </div>
-            </div>
-          ) : profile.users.length === 0 ? (
-            <div className="bg-slate-800 p-12 rounded-[3rem] border-2 border-dashed border-slate-700 text-center space-y-6">
-              <ExclamationCircleIcon className="w-16 h-16 text-amber-500 mx-auto" />
-              <div className="space-y-2">
-                <h2 className="text-xl font-black text-white uppercase tracking-widest">No Database Users Found</h2>
-                <p className="text-slate-400 text-xs italic leading-relaxed">The authentication system is currently using the PostgreSQL database. Please ensure a user account exists in the 'users' table or contact your system administrator.</p>
-              </div>
-              <button 
-                onClick={refreshFromDb}
-                className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                <ArrowPathIcon className="w-4 h-4" />
-                Retry Connection
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {profile.users.map(user => (
+            ) : profile.users.length === 0 ? (
+              <div className="text-center space-y-6 animate-in zoom-in">
+                <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <CheckCircleIcon className="w-10 h-10" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest text-emerald-400">Handshake Success</h2>
+                  <p className="text-slate-400 text-[10px] italic leading-relaxed px-4">Connection to PostgreSQL was successful. However, the 'users' table is currently empty. Please register users directly via SQL or contact support.</p>
+                </div>
                 <button 
-                  key={user.id}
-                  onClick={() => setSelectedLoginUser(user)}
-                  className="bg-slate-800 p-8 rounded-[3rem] border border-slate-700 hover:border-indigo-500 transition-all group flex flex-col items-center gap-4 relative"
+                  onClick={refreshFromDb}
+                  className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-500 transition-all shadow-xl"
                 >
-                  <LockClosedIcon className="absolute top-4 right-4 w-4 h-4 text-slate-600 group-hover:text-indigo-400" />
-                  <div className={`w-20 h-20 rounded-full ${user.avatarColor} flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform text-white`}>
-                    <UserCircleIcon className="w-12 h-12" />
-                  </div>
-                  <span className="font-black text-white uppercase tracking-widest text-[10px]">{user.name}</span>
+                  <ArrowPathIcon className="w-4 h-4 inline mr-2" />
+                  Refresh Vault
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {profile.users.map(user => (
+                  <button 
+                    key={user.id}
+                    onClick={() => setSelectedLoginUser(user)}
+                    className="bg-slate-900/50 p-8 rounded-[3rem] border border-slate-700 hover:border-indigo-500 hover:bg-slate-800/80 transition-all group flex flex-col items-center gap-4 relative shadow-sm"
+                  >
+                    <LockClosedIcon className="absolute top-4 right-4 w-4 h-4 text-slate-700 group-hover:text-indigo-400 transition-colors" />
+                    <div className={`w-20 h-20 rounded-full ${user.avatarColor} flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform text-white`}>
+                      <UserCircleIcon className="w-12 h-12" />
+                    </div>
+                    <span className="font-black text-white uppercase tracking-widest text-[11px] mt-2">{user.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           
           <div className="flex flex-col items-center gap-4 pt-8 border-t border-slate-800 text-center">
-             <div className="flex items-center gap-2">
-                <ShieldCheckIcon className="w-4 h-4 text-emerald-400" />
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                  Database State: {profile.users.length > 0 ? 'Active & Authenticated' : 'Empty / Waiting'}
+             <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'success' ? 'bg-emerald-500 animate-pulse' : connectionStatus === 'failed' ? 'bg-rose-500' : 'bg-slate-600'}`} />
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em]">
+                  Security Status: {connectionStatus === 'success' ? 'Linked & Encrypted' : connectionStatus === 'failed' ? 'Connection Blocked' : 'Linking...'}
                 </p>
              </div>
-             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em]">All planner entries are synchronized to your database in real-time.</p>
+             <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.1em] italic">PostgreSQL {connectionStatus === 'success' ? 'Handshake Finalized' : 'Handshake Pending'}.</p>
           </div>
         </div>
       </div>
