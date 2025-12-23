@@ -1,0 +1,7 @@
+{
+  "name": "Family Money & Debt Master",
+  "description": "A comprehensive financial planner designed to eliminate debt efficiently, track expenses via receipt scanning, and plan for life's special moments.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
