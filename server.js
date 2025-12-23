@@ -17,44 +17,32 @@ const geminiKey = process.env.API_KEY || "";
 let pool = null;
 
 if (dbUrl) {
-  console.log('PostgreSQL database URL detected.');
+  console.log('[MoneyMate] PostgreSQL database URL detected.');
   pool = new Pool({
     connectionString: dbUrl,
     ssl: { rejectUnauthorized: false }
   });
 } else {
-  console.warn('No DATABASE_URL found. Running in local-only mode.');
+  console.warn('[MoneyMate] No DATABASE_URL found. Running in local-only mode.');
 }
 
 /**
  * JIT Transpiler Middleware
- * Automatically converts TSX/TS to JS and fixes ESM import paths.
+ * Converts TSX/TS to JS on the fly and ensures ESM compatibility for browsers.
  */
-app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
-  // Skip API routes
-  if (req.path.startsWith('/api')) return next();
+app.get(/\.(tsx|ts)(\?.*)?$/, async (req, res, next) => {
+  // Strip query strings for file lookup
+  const cleanPath = req.path.split('?')[0];
+  const relPath = cleanPath.startsWith('/') ? cleanPath.slice(1) : cleanPath;
+  
+  // Use process.cwd() to ensure we look in the project root
+  const filePath = path.join(process.cwd(), relPath);
 
-  let filePath = path.join(__dirname, req.path);
-
-  // If no extension, try to resolve to .tsx or .ts
-  if (!path.extname(filePath)) {
-    if (fs.existsSync(filePath + '.tsx')) filePath += '.tsx';
-    else if (fs.existsSync(filePath + '.ts')) filePath += '.ts';
-    else return next();
+  if (!fs.existsSync(filePath) || fs.lstatSync(filePath).isDirectory()) {
+    console.warn(`[JIT] File not found: ${filePath}`);
+    // If a .tsx is requested but not found, don't fall back to HTML
+    return res.status(404).type('application/javascript').send(`console.error("File not found: ${relPath}");`);
   }
-
-  // Ensure it's not a directory
-  if (fs.existsSync(filePath) && fs.lstatSync(filePath).isDirectory()) {
-    return next();
-  }
-
-  // Final check if file exists
-  if (!fs.existsSync(filePath)) {
-    console.warn(`File not found for transpilation: ${filePath}`);
-    return next();
-  }
-
-  console.log(`Transpiling: ${req.path} -> JS`);
 
   try {
     const code = fs.readFileSync(filePath, 'utf8');
@@ -70,25 +58,27 @@ app.get(/\.(tsx|ts)$|^\/[^.]+$/, async (req, res, next) => {
       }
     });
 
-    // CRITICAL: Rewrite imports to include extensions for browser ESM resolution
-    // Handles: import { X } from './View' OR import App from './App'
-    const transformedCode = result.code.replace(
-      /from\s+['"](\.\.?\/[^'"]+)(?<!\.(tsx|ts|js|css))['"]/g,
+    // Import Rewriter: Ensures relative imports work in native browser ESM
+    let transformedCode = result.code.replace(
+      /from\s+['"](\.\.?\/[^'"]+)['"]/g,
       (match, p1) => {
-        const potentialTsx = path.join(path.dirname(filePath), p1 + '.tsx');
-        const potentialTs = path.join(path.dirname(filePath), p1 + '.ts');
-        if (fs.existsSync(potentialTsx)) return `from "${p1}.tsx"`;
-        if (fs.existsSync(potentialTs)) return `from "${p1}.ts"`;
+        // Skip if it already has a supported extension
+        if (p1.match(/\.(tsx|ts|js|css)$/)) return match;
+        
+        const dir = path.dirname(filePath);
+        if (fs.existsSync(path.join(dir, p1 + '.tsx'))) return `from "${p1}.tsx"`;
+        if (fs.existsSync(path.join(dir, p1 + '.ts'))) return `from "${p1}.ts"`;
         return match;
       }
     );
 
+    // Serve as Javascript with strict headers
     res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(transformedCode);
   } catch (err) {
-    console.error(`Transpilation Error [${req.path}]:`, err);
-    res.setHeader('Content-Type', 'application/javascript');
-    res.send(`console.error("Transpilation failed for ${req.path}: ${err.message.replace(/"/g, '\\"')}");`);
+    console.error(`[JIT] Transpilation Error [${relPath}]:`, err);
+    res.status(500).type('application/javascript').send(`console.error("Transpilation failed for ${relPath}: ${err.message.replace(/"/g, '\\"')}");`);
   }
 });
 
@@ -174,12 +164,12 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
 });
 
 // Static Assets
-app.use(express.static(path.join(__dirname, '.')));
+app.use(express.static(process.cwd()));
 
-// SPA Fallback
+// SPA Fallback - must come AFTER transpiler
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(process.cwd(), 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`MoneyMate Server active on PORT ${PORT}`));
+app.listen(PORT, () => console.log(`[MoneyMate] Server active on PORT ${PORT}`));

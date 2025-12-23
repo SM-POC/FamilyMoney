@@ -3,12 +3,25 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-const startApp = () => {
-  const rootElement = document.getElementById('root');
-  const bootScreen = document.getElementById('boot-screen');
+console.log("[MoneyMate] index.tsx module execution started.");
 
+const clearBootScreen = () => {
+  const bootScreen = document.getElementById('boot-screen');
+  if (bootScreen) {
+    console.log("[MoneyMate] Clearing boot screen...");
+    bootScreen.style.opacity = '0';
+    setTimeout(() => {
+      bootScreen.style.display = 'none';
+      bootScreen.style.visibility = 'hidden';
+    }, 600);
+  }
+};
+
+const mountApp = () => {
+  console.log("[MoneyMate] Mounting React app...");
+  const rootElement = document.getElementById('root');
   if (!rootElement) {
-    console.error("Critical Failure: Root element #root not found in DOM.");
+    console.error("[MoneyMate] Critical Failure: #root element missing.");
     return;
   }
 
@@ -19,26 +32,20 @@ const startApp = () => {
         <App />
       </React.StrictMode>
     );
-
-    // Fade out boot screen after a short delay to ensure React has rendered
-    setTimeout(() => {
-      if (bootScreen) {
-        bootScreen.style.opacity = '0';
-        bootScreen.style.visibility = 'hidden';
-      }
-    }, 100);
+    console.log("[MoneyMate] React component tree rendered.");
     
-    console.log("MoneyMate initialized successfully.");
+    // Safety: ensure boot screen is removed
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(clearBootScreen);
+      });
+    } else {
+      setTimeout(clearBootScreen, 300);
+    }
   } catch (error) {
-    console.error("Mounting Error:", error);
-    // Error will be caught by global error handler in index.html
+    console.error("[MoneyMate] Render Error:", error);
     throw error;
   }
 };
 
-// Start initialization
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', startApp);
-} else {
-  startApp();
-}
+mountApp();
