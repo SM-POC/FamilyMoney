@@ -10,9 +10,10 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Database Setup
+// Database & Auth Setup
 const dbUrl = process.env.DATABASE_URL;
 const authKey = process.env.AUTH_KEY;
+const geminiKey = process.env.API_KEY || "";
 let pool = null;
 
 if (dbUrl) {
@@ -22,41 +23,47 @@ if (dbUrl) {
   });
 }
 
-// JIT Transpiler Middleware for .tsx and .ts files
-app.get(/\.(tsx|ts)$/, async (req, res, next) => {
-  const filePath = path.join(__dirname, req.path);
+/**
+ * JIT Transpiler Middleware
+ * Intercepts requests for .tsx, .ts, or extension-less files that exist as TSX/TS.
+ */
+app.get('*', async (req, res, next) => {
+  // Skip API routes
+  if (req.path.startsWith('/api')) return next();
   
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send('File not found');
+  // Determine physical file path
+  let filePath = path.join(__dirname, req.path);
+  
+  // If the request doesn't have an extension, try to find a matching .tsx or .ts file
+  if (!path.extname(filePath)) {
+    if (fs.existsSync(filePath + '.tsx')) filePath += '.tsx';
+    else if (fs.existsSync(filePath + '.ts')) filePath += '.ts';
+    else return next(); // Not a TS/TSX file, let express.static handle it
+  }
+
+  // Only handle .tsx and .ts files
+  if (!filePath.endsWith('.tsx') && !filePath.endsWith('.ts')) {
+    return next();
   }
 
   try {
     const code = fs.readFileSync(filePath, 'utf8');
     const result = await esbuild.transform(code, {
-      loader: req.path.endsWith('.tsx') ? 'tsx' : 'ts',
+      loader: filePath.endsWith('.tsx') ? 'tsx' : 'ts',
       format: 'esm',
       target: 'es2020',
-      sourcemap: 'inline'
+      sourcemap: 'inline',
+      define: {
+        'process.env.API_KEY': JSON.stringify(geminiKey),
+        'process.env.NODE_ENV': '"production"'
+      }
     });
 
-    // Solve ESM extension issues: transform 'from "./App"' into 'from "./App.tsx"'
-    // This allows the browser to find the files without explicit extensions in code
-    const transformedCode = result.code.replace(
-      /from\s+['"](\.\.?\/[^'"]+)(?<!\.(tsx|ts|js|css))['"]/g,
-      (match, p1) => {
-        const potentialTsx = path.join(path.dirname(filePath), p1 + '.tsx');
-        const potentialTs = path.join(path.dirname(filePath), p1 + '.ts');
-        if (fs.existsSync(potentialTsx)) return `from "${p1}.tsx"`;
-        if (fs.existsSync(potentialTs)) return `from "${p1}.ts"`;
-        return match;
-      }
-    );
-
     res.setHeader('Content-Type', 'application/javascript');
-    res.send(transformedCode);
+    res.send(result.code);
   } catch (err) {
-    console.error('Transpilation Error:', err);
-    res.status(500).send(err.message);
+    console.error(`Transpilation Error at ${req.path}:`, err);
+    res.status(500).send(`Error transpiling ${req.path}: ${err.message}`);
   }
 });
 
@@ -141,7 +148,7 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
   }
 });
 
-// Static Assets
+// Static Assets & SPA Fallback
 app.use(express.static(path.join(__dirname, '.')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
