@@ -235,7 +235,9 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     const p = req.body;
     await client.query('DELETE FROM users; DELETE FROM debts; DELETE FROM expenses; DELETE FROM income; DELETE FROM goals; DELETE FROM cards; DELETE FROM lent_money; DELETE FROM special_events; DELETE FROM profile_config;');
 
+    // Insert order respects FK: users -> cards -> debts -> expenses -> income/goals -> others
     for (const u of (p.users || [])) await client.query('INSERT INTO users (id, name, role, avatar_color, password) VALUES ($1, $2, $3, $4, $5)', [u.id, u.name, u.role, u.avatarColor, u.password || null]);
+    for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner, user_id) VALUES ($1, $2, $3, $4, $5)', [c.id, c.name, c.last4, c.owner || null, c.userId || null]);
     for (const d of (p.debts || [])) await client.query('INSERT INTO debts (id, name, type, balance, interest_rate, minimum_payment, can_overpay, overpayment_penalty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [d.id, d.name, d.type, d.balance, d.interestRate, d.minimumPayment, d.canOverpay, d.overpaymentPenalty]);
     for (const e of (p.expenses || [])) await client.query(
       'INSERT INTO expenses (id, category, description, amount, is_recurring, is_subscription, date, merchant, receipt_id, card_id, card_last4, contract_end_date, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)',
@@ -257,7 +259,6 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     );
     for (const i of (p.income || [])) await client.query('INSERT INTO income (id, source, amount, user_id) VALUES ($1, $2, $3, $4)', [i.id, i.source, i.amount, i.userId || null]);
     for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date, category, monthly_contribution) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null, g.category || null, g.monthlyContribution || null]);
-    for (const c of (p.cards || [])) await client.query('INSERT INTO cards (id, name, last4, owner, user_id) VALUES ($1, $2, $3, $4, $5)', [c.id, c.name, c.last4, c.owner || null, c.userId || null]);
     for (const l of (p.lentMoney || [])) await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
     for (const ev of (p.specialEvents || [])) await client.query('INSERT INTO special_events (id, name, month, budget) VALUES ($1, $2, $3, $4)', [ev.id, ev.name, ev.month, ev.budget]);
     await client.query('INSERT INTO profile_config (id, luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3, $4)', ['family_main', p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)']);
