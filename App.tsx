@@ -72,7 +72,7 @@ const EMPTY_PROFILE: UserFinancialProfile = {
 };
 
 const App: React.FC = () => {
-  const [profile, setProfile] = useState<UserFinancialProfile>(EMPTY_PROFILE);
+  const [profile, _setProfile] = useState<UserFinancialProfile>(EMPTY_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -100,7 +100,7 @@ const App: React.FC = () => {
       console.log("[MoneyMate] Pulling with key security...");
       const remote = await syncPull('', AUTH_KEY); 
       if (remote) {
-        setProfile(p => ({ ...p, ...remote }));
+        _setProfile(p => ({ ...p, ...remote }));
         setConnectionStatus('success');
       }
     } catch (e: any) { 
@@ -116,24 +116,31 @@ const App: React.FC = () => {
     refreshFromDb();
   }, [refreshFromDb]);
 
-  // Automated Real-time Sync for all planner entries
-  useEffect(() => {
-    if (!isLoggedIn || profile.users.length === 0) return;
+  // Explicit sync helper: only runs when triggered by user-driven state updates
+  const syncToDb = useCallback(async (nextProfile: UserFinancialProfile) => {
+    setIsSyncing(true);
+    try {
+      await syncPush('', AUTH_KEY, nextProfile);
+      const remote = await syncPull('', AUTH_KEY);
+      if (remote) _setProfile(p => ({ ...p, ...remote }));
+      setConnectionStatus('success');
+    } catch (e: any) {
+      console.error("[MoneyMate] Sync failed:", e.message);
+      setConnectionStatus('failed');
+      setConnectionError(e.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
 
-    const timer = setTimeout(async () => {
-      setIsSyncing(true);
-      try {
-        await syncPush('', AUTH_KEY, profile);
-        console.log("[MoneyMate] Cloud state updated.");
-      } catch (e: any) { 
-        console.error("[MoneyMate] Sync failed:", e.message); 
-      } finally { 
-        setIsSyncing(false); 
-      }
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [profile, isLoggedIn]);
+  // Wrapper so all downstream updates go through syncToDb instead of auto-sync
+  const setProfile: React.Dispatch<React.SetStateAction<UserFinancialProfile>> = (update) => {
+    _setProfile(prev => {
+      const next = typeof update === 'function' ? (update as (p: UserFinancialProfile) => UserFinancialProfile)(prev) : update;
+      syncToDb(next);
+      return next;
+    });
+  };
 
   const schedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
   const totalDebt = (profile.debts || []).reduce((acc, d) => acc + d.balance, 0);
