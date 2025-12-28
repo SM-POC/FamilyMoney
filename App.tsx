@@ -104,8 +104,8 @@ const App: React.FC = () => {
         setProfileState(p => ({
           ...p,
           ...remote,
-          debtPlan: p.debtPlan ?? undefined,
-          planProgress: p.planProgress ?? {}
+          debtPlan: remote.debtPlan ?? p.debtPlan ?? undefined,
+          planProgress: remote.planProgress ?? p.planProgress ?? {}
         }));
         setConnectionStatus('success');
       }
@@ -148,8 +148,8 @@ const App: React.FC = () => {
         setProfileState(p => ({
           ...p,
           ...remote,
-          debtPlan: p.debtPlan ?? next.debtPlan,
-          planProgress: p.planProgress ?? next.planProgress
+          debtPlan: remote.debtPlan ?? p.debtPlan ?? next.debtPlan,
+          planProgress: remote.planProgress ?? p.planProgress ?? next.planProgress ?? {}
         }));
       }
       setConnectionStatus('success');

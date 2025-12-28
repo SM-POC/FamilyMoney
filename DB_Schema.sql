@@ -12,7 +12,9 @@ CREATE TABLE profile_config (
     id TEXT PRIMARY KEY DEFAULT 'family_main',
     luxury_budget NUMERIC(15, 2) DEFAULT 0,
     savings_buffer NUMERIC(5, 2) DEFAULT 0,
-    strategy TEXT
+    strategy TEXT,
+    debt_plan JSONB,
+    plan_progress JSONB
 );
 
 -- Financial Liability Tracking

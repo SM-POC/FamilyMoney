@@ -41,7 +41,9 @@ if (dbUrl) {
           id TEXT PRIMARY KEY DEFAULT 'family_main',
           luxury_budget NUMERIC(15, 2) DEFAULT 0,
           savings_buffer NUMERIC(5, 2) DEFAULT 0,
-          strategy TEXT CHECK (strategy IN ('Avalanche (Save Interest)', 'Snowball (Smallest First)'))
+          strategy TEXT,
+          debt_plan JSONB,
+          plan_progress JSONB
         );
         CREATE TABLE IF NOT EXISTS cards (
           id TEXT PRIMARY KEY,
@@ -115,6 +117,8 @@ if (dbUrl) {
         "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS savings_buffer NUMERIC(5, 2)",
         "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS luxury_budget NUMERIC(15, 2)",
         "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS id TEXT",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS debt_plan JSONB",
+        "ALTER TABLE profile_config ADD COLUMN IF NOT EXISTS plan_progress JSONB",
         "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS date DATE",
         "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS merchant TEXT",
         "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receipt_id TEXT",
@@ -219,6 +223,8 @@ app.get('/api/pull', validateAuth, checkDb, async (req, res) => {
       luxuryBudget: parseFloat(config.rows[0]?.luxury_budget || 0),
       savingsBuffer: parseFloat(config.rows[0]?.savings_buffer || 0),
       strategy: config.rows[0]?.strategy || 'Avalanche (Save Interest)',
+      debtPlan: config.rows[0]?.debt_plan || null,
+      planProgress: config.rows[0]?.plan_progress || {},
       specialEvents: events.rows.map(ev => ({ ...ev, budget: ev.budget === null || ev.budget === undefined ? 0 : parseFloat(ev.budget) })),
       paymentLogs: []
     });
@@ -261,7 +267,7 @@ app.post('/api/push', validateAuth, checkDb, async (req, res) => {
     for (const g of (p.goals || [])) await client.query('INSERT INTO goals (id, name, type, target_amount, current_amount, target_date, category, monthly_contribution) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [g.id, g.name, g.type, g.targetAmount, g.currentAmount, g.targetDate || null, g.category || null, g.monthlyContribution || null]);
     for (const l of (p.lentMoney || [])) await client.query('INSERT INTO lent_money (id, recipient, purpose, total_amount, remaining_balance, default_repayment) VALUES ($1, $2, $3, $4, $5, $6)', [l.id, l.recipient, l.purpose, l.totalAmount, l.remainingBalance, l.defaultRepayment]);
     for (const ev of (p.specialEvents || [])) await client.query('INSERT INTO special_events (id, name, month, budget) VALUES ($1, $2, $3, $4)', [ev.id, ev.name, ev.month, ev.budget]);
-    await client.query('INSERT INTO profile_config (id, luxury_budget, savings_buffer, strategy) VALUES ($1, $2, $3, $4)', ['family_main', p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)']);
+    await client.query('INSERT INTO profile_config (id, luxury_budget, savings_buffer, strategy, debt_plan, plan_progress) VALUES ($1, $2, $3, $4, $5, $6)', ['family_main', p.luxuryBudget || 0, p.savingsBuffer || 0, p.strategy || 'Avalanche (Save Interest)', p.debtPlan || null, p.planProgress || {}]);
 
     await client.query('COMMIT');
     res.json({ success: true });
