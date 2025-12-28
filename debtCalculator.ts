@@ -94,13 +94,9 @@ export const calculatePayoffSchedule = (
     const luxuryUsed = respectLuxuries ? luxuryBudget : 0;
     const subsUsed = respectSubscriptions ? recurringSubs : 0;
 
-    const baseAvailable = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
-    let savingsReserve = respectSavingsBuffer ? Math.max(0, baseAvailable * (savingsBuffer / 100)) : 0;
-    let availableForDebt = baseAvailable - savingsReserve;
-    if (availableForDebt < 0) {
-      savingsReserve = Math.max(0, savingsReserve + availableForDebt); // reduce reserve if it over-consumes
-      availableForDebt = 0;
-    }
+    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
+    if (availableForDebt < 0) availableForDebt = 0;
+    let savingsReserve = 0;
 
     // 1. Mandatory Minimums
     currentDebts.forEach(debt => {
@@ -134,6 +130,12 @@ export const calculatePayoffSchedule = (
         isNewlyCleared
       });
     });
+
+    // Reserve savings AFTER minimums so buffers don't eat the whole pot before debt service
+    if (respectSavingsBuffer && availableForDebt > 0) {
+      savingsReserve = Math.max(0, availableForDebt * (savingsBuffer / 100));
+      availableForDebt -= savingsReserve;
+    }
 
     // 2. Extra Payments
     if (availableForDebt > 0) {
