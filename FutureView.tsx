@@ -19,7 +19,7 @@ interface FutureViewProps {
 
 const currency = (value: number) => `£${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
-export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile }) => {
+export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setProfile }) => {
   const planScenario = profile.debtPlan;
   const defaultPreferences = { protectLuxury: true, protectSubscriptions: true, avoidPenaltyOverpay: true, keepSavingsBuffer: true };
   const preferences = planScenario?.preferences ?? defaultPreferences;
