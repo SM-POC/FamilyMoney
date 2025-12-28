@@ -114,21 +114,12 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   }, [monthsBetweenNow, profile, schedule.length, totalDebt, preferences.avoidPenaltyOverpay, preferences.protectLuxury, preferences.protectSubscriptions, preferences.keepSavingsBuffer]);
 
   const activeSchedule = useMemo(() => {
-    if (
-      planScenario &&
-      mode === (planScenario.mode ?? 'funds') &&
-      (planScenario.mode === 'funds'
-        ? Math.max(0, extraMonthly) === Math.max(0, planScenario.extraMonthly || 0)
-        : targetDate === (planScenario.targetDate || ''))
-    ) {
-      return schedule;
-    }
     if (mode === 'date') {
       const boost = targetRequirement.required ?? 0;
       return calcWithPreferences(targetRequirement.feasible ? boost : 0, Math.max(monthsBetweenNow || 0, 360));
     }
     return calcWithPreferences(Math.max(0, extraMonthly));
-  }, [extraMonthly, mode, monthsBetweenNow, targetRequirement, preferences.avoidPenaltyOverpay, preferences.protectLuxury, preferences.protectSubscriptions, preferences.keepSavingsBuffer, profile, planScenario, schedule, targetDate]);
+  }, [extraMonthly, mode, monthsBetweenNow, targetRequirement, preferences.avoidPenaltyOverpay, preferences.protectLuxury, preferences.protectSubscriptions, preferences.keepSavingsBuffer, profile]);
 
   const summarise = (plan: PayoffMonth[]) => ({
     months: plan.length,
@@ -201,7 +192,8 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
                     type="number"
                     value={Number.isNaN(extraMonthly) ? '' : extraMonthly}
                     onChange={e => {
-                      const val = parseFloat(e.target.value);
+                      const cleaned = (e.target.value || '').replace(/,/g, '');
+                      const val = parseFloat(cleaned);
                       setExtraMonthly(isNaN(val) ? 0 : val);
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-black text-sm"
