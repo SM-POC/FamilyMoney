@@ -165,6 +165,9 @@ const App: React.FC = () => {
   const planSchedule = useMemo(() => {
     const plan = profile.debtPlan;
     if (plan) {
+      if (plan.schedule && plan.schedule.length > 0) {
+        return plan.schedule;
+      }
       const prefs = plan.preferences ?? { protectLuxury: true, protectSubscriptions: true, avoidPenaltyOverpay: true, keepSavingsBuffer: true };
       const push = plan.mode === 'date'
         ? (plan.requiredMonthly ?? plan.extraMonthly ?? 0)
