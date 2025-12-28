@@ -19,7 +19,11 @@ export const PlanView: React.FC<PlanViewProps> = ({ profile, setProfile, schedul
   const [newEvent, setNewEvent] = useState({ name: '', month: '', budget: '' });
   const existingPlan = profile.debtPlan;
   const [mode, setMode] = useState<'funds' | 'date'>(existingPlan?.mode ?? 'funds');
-  const [extraMonthly, setExtraMonthly] = useState<number>(existingPlan?.extraMonthly ?? 0);
+  const [extraMonthly, setExtraMonthly] = useState<number>(
+    existingPlan?.mode === 'date'
+      ? (existingPlan?.requiredMonthly ?? existingPlan?.extraMonthly ?? 0)
+      : (existingPlan?.extraMonthly ?? 0)
+  );
   const [targetDate, setTargetDate] = useState<string>(existingPlan?.targetDate ?? '');
   const [preferences, setPreferences] = useState<DebtPlanPreferences>(existingPlan?.preferences ?? {
     protectLuxury: true,
@@ -161,17 +165,18 @@ export const PlanView: React.FC<PlanViewProps> = ({ profile, setProfile, schedul
       }
 
       const planSchedule = buildSchedule(monthlyPush, maxMonths);
+      const effectiveMonthly = monthlyPush;
 
       await setProfile(p => ({
         ...p,
         debtPlan: {
           mode,
-          extraMonthly: Math.max(0, extraMonthly),
+          extraMonthly: effectiveMonthly,
           targetDate,
           userIntent,
           interpretedIntent,
           generatedAt: new Date().toISOString(),
-          requiredMonthly: mode === 'date' ? requiredMonthly : monthlyPush,
+          requiredMonthly: mode === 'date' ? requiredMonthly : null,
           preferences,
           schedule: planSchedule
         }

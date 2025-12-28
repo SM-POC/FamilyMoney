@@ -41,10 +41,12 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   const subsUsed = preferences.protectSubscriptions ? recurringSubs : 0;
   const baseAvailable = Math.max(0, monthlyIncome + lentRepayments - recurringBills - subsUsed - luxuryUsed - eventThisMonth - debtMinimums);
 
+  const baseSchedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
+
   const activeSchedule = useMemo(() => {
     if (planScenario?.schedule && planScenario.schedule.length > 0) return planScenario.schedule;
-    return schedule.length > 0 ? schedule : calculatePayoffSchedule(profile);
-  }, [planScenario, profile, schedule]);
+    return schedule.length > 0 ? schedule : baseSchedule;
+  }, [planScenario, schedule, baseSchedule]);
 
   const summarise = (plan: PayoffMonth[]) => ({
     months: plan.length,
@@ -54,7 +56,8 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   });
 
   const planSummary = useMemo(() => summarise(activeSchedule), [activeSchedule]);
-  const baseSummary = useMemo(() => summarise(schedule), [schedule]);
+  const baseSummary = useMemo(() => summarise(baseSchedule), [baseSchedule]);
+  const interestSaved = Math.max(0, baseSummary.totalInterest - planSummary.totalInterest);
 
   if (totalDebt === 0 && (profile.lentMoney || []).length === 0) {
     return (
@@ -97,12 +100,17 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Plan mode</p>
               <p className="text-xl font-black text-indigo-600 tracking-tight">{mode === 'date' ? 'Target Date' : 'Use Available Funds'}</p>
               {planScenario?.targetDate && <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Target: {planScenario.targetDate}</p>}
-              {planScenario?.extraMonthly !== undefined && <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Extra push: {currency(planScenario.extraMonthly || 0)}</p>}
+              {planScenario && (
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                  Extra push: {currency(mode === 'date' ? (planScenario.requiredMonthly ?? planScenario.extraMonthly ?? 0) : (planScenario.extraMonthly || 0))}
+                </p>
+              )}
             </div>
             <div className="p-5 rounded-2xl border border-slate-100 bg-white">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Projected freedom</p>
               <p className="text-xl font-black text-indigo-600 tracking-tight">{planSummary.debtFreeDate}</p>
               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{planSummary.months} months away</p>
+              <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Interest saved {currency(interestSaved)}</p>
             </div>
           </div>
 
@@ -118,6 +126,7 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
               </p>
               <p className="text-2xl font-black tracking-tight">{planSummary.debtFreeDate}</p>
               <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{planSummary.months} months | Interest: {currency(planSummary.totalInterest)}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Saving {currency(interestSaved)} vs base</p>
             </div>
           </div>
         </div>

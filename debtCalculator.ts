@@ -29,6 +29,7 @@ export const calculatePayoffSchedule = (
 
   let currentDebts = debts.map(d => ({ ...d }));
   let currentLent = lentMoney.map(l => ({ ...l }));
+  let remainingEvents = [...specialEvents];
   
   const clearedDebtsTracker = new Set<string>();
   const clearedLentTracker = new Set<string>();
@@ -46,9 +47,12 @@ export const calculatePayoffSchedule = (
     const monthIndex = (currentMonthDate.getMonth() + monthsCount) % 12;
     const year = currentMonthDate.getFullYear() + Math.floor((currentMonthDate.getMonth() + monthsCount) / 12);
     
-    const eventBudget = specialEvents
-      .filter(e => e.month === monthIndex)
-      .reduce((acc, curr) => acc + curr.budget, 0);
+    const eventsThisMonth = remainingEvents.filter(e => e.month === monthIndex);
+    const eventBudget = eventsThisMonth.reduce((acc, curr) => acc + curr.budget, 0);
+    if (eventsThisMonth.length > 0) {
+      const usedIds = new Set(eventsThisMonth.map(e => e.id));
+      remainingEvents = remainingEvents.filter(e => !usedIds.has(e.id));
+    }
 
     const monthData: PayoffMonth = {
       monthIndex: monthsCount,
@@ -90,8 +94,13 @@ export const calculatePayoffSchedule = (
     const luxuryUsed = respectLuxuries ? luxuryBudget : 0;
     const subsUsed = respectSubscriptions ? recurringSubs : 0;
 
-    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
-    if (availableForDebt < 0) availableForDebt = 0;
+    const baseAvailable = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
+    let savingsReserve = respectSavingsBuffer ? Math.max(0, baseAvailable * (savingsBuffer / 100)) : 0;
+    let availableForDebt = baseAvailable - savingsReserve;
+    if (availableForDebt < 0) {
+      savingsReserve = Math.max(0, savingsReserve + availableForDebt); // reduce reserve if it over-consumes
+      availableForDebt = 0;
+    }
 
     // 1. Mandatory Minimums
     currentDebts.forEach(debt => {
@@ -103,11 +112,12 @@ export const calculatePayoffSchedule = (
       let minPay = Math.min(debt.balance + interestCharge, debt.minimumPayment);
       const actualPayment = Math.min(minPay, availableForDebt);
       
-      const principal = actualPayment - interestCharge;
+      const interestPortion = Math.min(interestCharge, actualPayment);
+      const principal = actualPayment - interestPortion;
       debt.balance = Math.max(0, debt.balance + interestCharge - actualPayment);
       availableForDebt -= actualPayment;
 
-      monthData.interestPaid += interestCharge;
+      monthData.interestPaid += interestPortion;
       monthData.principalPaid += Math.max(0, principal);
       monthData.totalPayment += actualPayment;
 
@@ -118,7 +128,7 @@ export const calculatePayoffSchedule = (
         debtId: debt.id,
         debtName: debt.name,
         payment: actualPayment,
-        interest: interestCharge,
+        interest: interestPortion,
         remaining: debt.balance,
         penalty: 0,
         isNewlyCleared
@@ -172,7 +182,8 @@ export const calculatePayoffSchedule = (
       }
     }
 
-    monthData.savingsGoal = respectSavingsBuffer ? Math.max(0, availableForDebt * (savingsBuffer / 100)) : 0;
+    const leftoverForSavings = respectSavingsBuffer ? Math.max(0, availableForDebt) : 0;
+    monthData.savingsGoal = savingsReserve + leftoverForSavings;
     monthData.remainingBalance = currentDebts.reduce((acc, d) => acc + d.balance, 0);
     monthData.eventsBudgetUsed = eventBudget;
     monthData.luxuryBudgetUsed = luxuryUsed;
