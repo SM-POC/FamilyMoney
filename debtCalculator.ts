@@ -16,6 +16,7 @@ export const calculatePayoffSchedule = (
 ): PayoffMonth[] => {
   const { debts, income, expenses, specialEvents, luxuryBudget, savingsBuffer, strategy, lentMoney = [] } = profile;
   const { monthlyOverpayment = 0, maxMonths = 360, respectLuxuries = true, respectSubscriptions = true, avoidPenaltyOverpay = false, respectSavingsBuffer = true } = options;
+  const extraPush = Math.max(0, monthlyOverpayment);
   
   if (debts.length === 0 && lentMoney.length === 0) return [];
 
@@ -94,9 +95,10 @@ export const calculatePayoffSchedule = (
     const luxuryUsed = respectLuxuries ? luxuryBudget : 0;
     const subsUsed = respectSubscriptions ? recurringSubs : 0;
 
-    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
+    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + extraPush;
     if (availableForDebt < 0) availableForDebt = 0;
     let savingsReserve = 0;
+    let minimumsPaid = 0;
 
     // 1. Mandatory Minimums
     currentDebts.forEach(debt => {
@@ -116,6 +118,7 @@ export const calculatePayoffSchedule = (
       monthData.interestPaid += interestPortion;
       monthData.principalPaid += Math.max(0, principal);
       monthData.totalPayment += actualPayment;
+      minimumsPaid += actualPayment;
 
       const isNewlyCleared = debt.balance === 0 && !clearedDebtsTracker.has(debt.id);
       if (isNewlyCleared) clearedDebtsTracker.add(debt.id);
@@ -131,10 +134,11 @@ export const calculatePayoffSchedule = (
       });
     });
 
-    // Reserve savings AFTER minimums so buffers don't eat the whole pot before debt service
+    // Reserve savings AFTER minimums; never take from the explicit extra push
     if (respectSavingsBuffer && availableForDebt > 0) {
       const savingsPercent = Math.min(Math.max(savingsBuffer, 0), 100);
-      savingsReserve = Math.max(0, availableForDebt * (savingsPercent / 100));
+      const reserveBase = Math.max(0, availableForDebt - extraPush);
+      savingsReserve = Math.max(0, reserveBase * (savingsPercent / 100));
       if (savingsReserve > availableForDebt) savingsReserve = availableForDebt;
       availableForDebt -= savingsReserve;
     }
