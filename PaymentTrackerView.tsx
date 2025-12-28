@@ -17,8 +17,8 @@ interface PaymentTrackerViewProps {
 
 export const PaymentTrackerView: React.FC<PaymentTrackerViewProps> = ({ profile, setProfile }) => {
   const currentMonth = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-  const progress = profile.planProgress || {};
-  const currentProgress = progress[currentMonth] || { completedIds: [] };
+  const planProgress = profile.planProgress || {};
+  const currentProgress = planProgress[currentMonth] || { completedIds: [] };
   const completedIds = new Set(currentProgress.completedIds || []);
 
   const toggleItem = (id: string) => {
@@ -42,7 +42,7 @@ export const PaymentTrackerView: React.FC<PaymentTrackerViewProps> = ({ profile,
 
   const totalTasks = trackerItems.length;
   const completedTasks = trackerItems.filter(item => completedIds.has(item.id)).length;
-  const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const progressPercent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-500">
@@ -58,7 +58,7 @@ export const PaymentTrackerView: React.FC<PaymentTrackerViewProps> = ({ profile,
           </div>
           <div className="w-16 h-16 rounded-full border-8 border-slate-50 relative flex items-center justify-center">
              <div className="absolute inset-0 rounded-full border-8 border-indigo-500 border-t-transparent animate-spin-slow opacity-20" />
-             <p className="text-[10px] font-black">{Math.round(progress)}%</p>
+             <p className="text-[10px] font-black">{Math.round(progressPercent)}%</p>
           </div>
         </div>
       </header>
@@ -106,8 +106,8 @@ export const PaymentTrackerView: React.FC<PaymentTrackerViewProps> = ({ profile,
             <p className="text-slate-400 text-sm italic">Completing all tasks ensures your balances update for the next month projection.</p>
           </div>
           <button 
-            disabled={progress < 100}
-            className={`px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${progress === 100 ? 'bg-indigo-600 text-white shadow-2xl hover:bg-indigo-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
+            disabled={progressPercent < 100}
+            className={`px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${progressPercent === 100 ? 'bg-indigo-600 text-white shadow-2xl hover:bg-indigo-500' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
           >
             Finalise {currentMonth}
           </button>
