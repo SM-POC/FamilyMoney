@@ -41,6 +41,7 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   const monthlyIncome = useMemo(() => (profile.income || []).reduce((acc, i) => acc + i.amount, 0), [profile.income]);
   const recurringBills = useMemo(() => (profile.expenses || []).filter(e => e.isRecurring && !e.isSubscription).reduce((acc, e) => acc + e.amount, 0), [profile.expenses]);
   const recurringSubs = useMemo(() => (profile.expenses || []).filter(e => e.isRecurring && e.isSubscription).reduce((acc, e) => acc + e.amount, 0), [profile.expenses]);
+  const debtMinimums = useMemo(() => (profile.debts || []).reduce((acc, d) => acc + d.minimumPayment, 0), [profile.debts]);
   const lentRepayments = useMemo(() => (profile.lentMoney || []).reduce((acc, l) => acc + Math.min(l.remainingBalance, l.defaultRepayment), 0), [profile.lentMoney]);
   const eventThisMonth = useMemo(() => {
     const monthIndex = new Date().getMonth();
@@ -49,7 +50,7 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
 
   const luxuryUsed = preferences.protectLuxury ? (profile.luxuryBudget || 0) : 0;
   const subsUsed = preferences.protectSubscriptions ? recurringSubs : 0;
-  const baseAvailable = Math.max(0, monthlyIncome + lentRepayments - recurringBills - subsUsed - luxuryUsed - eventThisMonth);
+  const baseAvailable = Math.max(0, monthlyIncome + lentRepayments - recurringBills - subsUsed - luxuryUsed - eventThisMonth - debtMinimums);
 
   const monthsBetweenNow = useMemo(() => {
     if (!targetDate) return null;
@@ -190,7 +191,7 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
               <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Base monthly room</p>
                 <p className="text-2xl font-black text-slate-900 tracking-tight">{currency(baseAvailable)}</p>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Income + repayments - recurring - lifestyle</p>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Income + repayments - recurring - subs - lux - debt mins</p>
               </div>
               <div className="p-5 rounded-2xl border border-slate-100 bg-white">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Add extra push</p>
@@ -288,6 +289,10 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
             <div className="flex items-center justify-between">
               <span>Subscriptions</span>
               <span className="text-rose-400">- {currency(recurringSubs)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Debt minimums</span>
+              <span className="text-rose-500">- {currency(debtMinimums)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Luxury buffer</span>
