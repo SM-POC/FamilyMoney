@@ -283,7 +283,7 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
             </div>
             <div className="flex items-center justify-between">
               <span>Recurring bills</span>
-              <span className="text-rose-500">- {currency(recurringExpenses)}</span>
+              <span className="text-rose-500">- {currency(recurringBills)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Subscriptions</span>
