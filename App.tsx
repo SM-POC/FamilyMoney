@@ -101,7 +101,12 @@ const App: React.FC = () => {
       console.log("[MoneyMate] Pulling with key security...");
       const remote = await syncPull('', AUTH_KEY); 
       if (remote) {
-        setProfileState(p => ({ ...p, ...remote }));
+        setProfileState(p => ({
+          ...p,
+          ...remote,
+          debtPlan: p.debtPlan ?? undefined,
+          planProgress: p.planProgress ?? {}
+        }));
         setConnectionStatus('success');
       }
     } catch (e: any) { 
@@ -139,7 +144,14 @@ const App: React.FC = () => {
       setProfileState(next);
       await syncPush('', AUTH_KEY, next);
       const remote = await syncPull('', AUTH_KEY);
-      if (remote) setProfileState(p => ({ ...p, ...remote }));
+      if (remote) {
+        setProfileState(p => ({
+          ...p,
+          ...remote,
+          debtPlan: p.debtPlan ?? next.debtPlan,
+          planProgress: p.planProgress ?? next.planProgress
+        }));
+      }
       setConnectionStatus('success');
     } catch (e: any) {
       console.error("[MoneyMate] Sync failed:", e.message);
