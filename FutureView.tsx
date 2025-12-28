@@ -1,13 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PayoffMonth, UserFinancialProfile } from './types';
 import { calculatePayoffSchedule } from './debtCalculator';
 import {
   RocketLaunchIcon,
-  BanknotesIcon,
   CalendarIcon,
   SparklesIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
@@ -23,19 +21,10 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   const planScenario = profile.debtPlan;
   const defaultPreferences = { protectLuxury: true, protectSubscriptions: true, avoidPenaltyOverpay: true, keepSavingsBuffer: true };
   const preferences = planScenario?.preferences ?? defaultPreferences;
-  const [mode, setMode] = useState<'funds' | 'date'>(planScenario?.mode ?? 'funds');
-  const [extraMonthly, setExtraMonthly] = useState<number>(planScenario?.extraMonthly ?? 0);
-  const [targetDate, setTargetDate] = useState<string>(planScenario?.targetDate ?? '');
+  const mode = planScenario?.mode ?? 'funds';
+  const targetDate = planScenario?.targetDate ?? '';
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
   const planProgress = profile.planProgress || {};
-
-  useEffect(() => {
-    if (planScenario) {
-      setMode(planScenario.mode ?? 'funds');
-      setExtraMonthly(planScenario.extraMonthly ?? 0);
-      setTargetDate(planScenario.targetDate ?? '');
-    }
-  }, [planScenario]);
 
   const totalDebt = useMemo(() => (profile.debts || []).reduce((acc, d) => acc + d.balance, 0), [profile.debts]);
   const monthlyIncome = useMemo(() => (profile.income || []).reduce((acc, i) => acc + i.amount, 0), [profile.income]);
@@ -52,74 +41,10 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   const subsUsed = preferences.protectSubscriptions ? recurringSubs : 0;
   const baseAvailable = Math.max(0, monthlyIncome + lentRepayments - recurringBills - subsUsed - luxuryUsed - eventThisMonth - debtMinimums);
 
-  const monthsBetweenNow = useMemo(() => {
-    if (!targetDate) return null;
-    const target = new Date(`${targetDate}-01`);
-    if (isNaN(target.getTime())) return null;
-    const now = new Date();
-    return (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
-  }, [targetDate]);
-
-  const minTargetMonth = useMemo(() => {
-    const next = new Date();
-    next.setMonth(next.getMonth() + 1);
-    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
-
-  const calcWithPreferences = (push: number, maxMonths?: number) =>
-    calculatePayoffSchedule(profile, {
-      monthlyOverpayment: Math.max(0, push),
-      maxMonths,
-      respectLuxuries: preferences.protectLuxury,
-      respectSubscriptions: preferences.protectSubscriptions,
-      avoidPenaltyOverpay: preferences.avoidPenaltyOverpay,
-      respectSavingsBuffer: preferences.keepSavingsBuffer
-    });
-
-  const targetRequirement = useMemo(() => {
-    if (monthsBetweenNow === null) return { required: null as number | null, feasible: false };
-    if (monthsBetweenNow <= 0) return { required: 0, feasible: true };
-
-    const baseLength = schedule.length;
-    if (baseLength > 0 && baseLength <= monthsBetweenNow) return { required: 0, feasible: true };
-
-    let high = Math.max(totalDebt * 2, 1000);
-    let highPlan = calcWithPreferences(high, Math.max(monthsBetweenNow, 360));
-    let safetyGuard = 0;
-    while (highPlan.length > monthsBetweenNow && safetyGuard < 5) {
-      high *= 1.5;
-      highPlan = calcWithPreferences(high, Math.max(monthsBetweenNow, 360));
-      safetyGuard++;
-    }
-
-    if (highPlan.length > monthsBetweenNow) return { required: null, feasible: false };
-
-    let low = 0;
-    let best: number | null = null;
-
-    for (let i = 0; i < 22; i++) {
-      const mid = (low + high) / 2;
-      const sim = calcWithPreferences(mid, Math.max(monthsBetweenNow, 360));
-      const len = sim.length;
-
-      if (len <= monthsBetweenNow) {
-        best = mid;
-        high = mid;
-      } else {
-        low = mid;
-      }
-    }
-
-    return { required: best, feasible: best !== null };
-  }, [monthsBetweenNow, profile, schedule.length, totalDebt, preferences.avoidPenaltyOverpay, preferences.protectLuxury, preferences.protectSubscriptions, preferences.keepSavingsBuffer]);
-
   const activeSchedule = useMemo(() => {
-    if (mode === 'date') {
-      const boost = targetRequirement.required ?? 0;
-      return calcWithPreferences(targetRequirement.feasible ? boost : 0, Math.max(monthsBetweenNow || 0, 360));
-    }
-    return calcWithPreferences(Math.max(0, extraMonthly));
-  }, [extraMonthly, mode, monthsBetweenNow, targetRequirement, preferences.avoidPenaltyOverpay, preferences.protectLuxury, preferences.protectSubscriptions, preferences.keepSavingsBuffer, profile]);
+    if (planScenario?.schedule && planScenario.schedule.length > 0) return planScenario.schedule;
+    return schedule.length > 0 ? schedule : calculatePayoffSchedule(profile);
+  }, [planScenario, profile, schedule]);
 
   const summarise = (plan: PayoffMonth[]) => ({
     months: plan.length,
@@ -128,8 +53,8 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
     totalPaid: plan.reduce((acc, m) => acc + m.totalPayment, 0)
   });
 
-  const baseSummary = useMemo(() => summarise(schedule), [schedule]);
   const planSummary = useMemo(() => summarise(activeSchedule), [activeSchedule]);
+  const baseSummary = useMemo(() => summarise(schedule), [schedule]);
 
   if (totalDebt === 0 && (profile.lentMoney || []).length === 0) {
     return (
@@ -162,88 +87,24 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setMode('funds')}
-              className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${mode === 'funds' ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200' : 'border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600'}`}
-            >
-              Use Available Funds
-            </button>
-            <button
-              onClick={() => setMode('date')}
-              className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${mode === 'date' ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200' : 'border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600'}`}
-            >
-              Aim for a Target Date
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Base monthly room</p>
+              <p className="text-2xl font-black text-slate-900 tracking-tight">{currency(baseAvailable)}</p>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Income + repayments - recurring - subs - lux - debt mins</p>
+            </div>
+            <div className="p-5 rounded-2xl border border-slate-100 bg-white">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Plan mode</p>
+              <p className="text-xl font-black text-indigo-600 tracking-tight">{mode === 'date' ? 'Target Date' : 'Use Available Funds'}</p>
+              {planScenario?.targetDate && <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Target: {planScenario.targetDate}</p>}
+              {planScenario?.extraMonthly !== undefined && <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Extra push: {currency(planScenario.extraMonthly || 0)}</p>}
+            </div>
+            <div className="p-5 rounded-2xl border border-slate-100 bg-white">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Projected freedom</p>
+              <p className="text-xl font-black text-indigo-600 tracking-tight">{planSummary.debtFreeDate}</p>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{planSummary.months} months away</p>
+            </div>
           </div>
-
-          {mode === 'funds' ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Base monthly room</p>
-                <p className="text-2xl font-black text-slate-900 tracking-tight">{currency(baseAvailable)}</p>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Income + repayments - recurring - subs - lux - debt mins</p>
-              </div>
-              <div className="p-5 rounded-2xl border border-slate-100 bg-white">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Add extra push</p>
-                <div className="flex items-center gap-2">
-                  <BanknotesIcon className="w-5 h-5 text-indigo-500" />
-                  <input
-                    type="number"
-                    value={Number.isNaN(extraMonthly) ? '' : extraMonthly}
-                    onChange={e => {
-                      const cleaned = (e.target.value || '').replace(/,/g, '');
-                      const val = parseFloat(cleaned);
-                      setExtraMonthly(isNaN(val) ? 0 : val);
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-black text-sm"
-                    placeholder="0"
-                    min={0}
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Per month devoted to debts</p>
-              </div>
-              <div className="p-5 rounded-2xl border border-slate-100 bg-white">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Projected freedom</p>
-                <p className="text-xl font-black text-indigo-600 tracking-tight">{planSummary.debtFreeDate}</p>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{planSummary.months} months away</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Target debt-free date</p>
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5 text-indigo-500" />
-                  <input
-                    type="month"
-                    min={minTargetMonth}
-                    value={targetDate}
-                    onChange={e => setTargetDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2 font-black text-sm"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Months remaining: {monthsBetweenNow !== null ? monthsBetweenNow : 'N/A'}</p>
-              </div>
-              <div className="p-5 rounded-2xl border border-slate-100 bg-white">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Required monthly</p>
-                {targetRequirement.feasible ? (
-                  <p className="text-2xl font-black text-slate-900 tracking-tight">{currency(Math.max(0, targetRequirement.required || 0))}</p>
-                ) : (
-                  <div className="flex items-center gap-2 text-rose-500">
-                    <ExclamationTriangleIcon className="w-5 h-5" />
-                    <p className="text-sm font-black">Target is unreachable with current inputs.</p>
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">On top of existing room</p>
-              </div>
-              <div className="p-5 rounded-2xl border border-slate-100 bg-white">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Projected freedom</p>
-                <p className="text-xl font-black text-indigo-600 tracking-tight">{planSummary.debtFreeDate}</p>
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{planSummary.months} months away</p>
-              </div>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-6 rounded-3xl border border-slate-100 bg-slate-900 text-white space-y-1">
