@@ -4,6 +4,10 @@ import { Debt, PayoffMonth, UserFinancialProfile, StrategyType, LentMoney } from
 export interface PayoffOptions {
   monthlyOverpayment?: number;
   maxMonths?: number;
+  respectLuxuries?: boolean;
+  respectSubscriptions?: boolean;
+  avoidPenaltyOverpay?: boolean;
+  respectSavingsBuffer?: boolean;
 }
 
 export const calculatePayoffSchedule = (
@@ -11,13 +15,16 @@ export const calculatePayoffSchedule = (
   options: PayoffOptions = {}
 ): PayoffMonth[] => {
   const { debts, income, expenses, specialEvents, luxuryBudget, savingsBuffer, strategy, lentMoney = [] } = profile;
-  const { monthlyOverpayment = 0, maxMonths = 360 } = options;
+  const { monthlyOverpayment = 0, maxMonths = 360, respectLuxuries = true, respectSubscriptions = true, avoidPenaltyOverpay = false, respectSavingsBuffer = true } = options;
   
   if (debts.length === 0 && lentMoney.length === 0) return [];
 
   const baseMonthlyIncome = income.reduce((acc, curr) => acc + curr.amount, 0);
-  const recurringExpenses = expenses
-    .filter(e => e.isRecurring)
+  const recurringSubs = expenses
+    .filter(e => e.isRecurring && e.isSubscription)
+    .reduce((acc, curr) => acc + curr.amount, 0);
+  const recurringBills = expenses
+    .filter(e => e.isRecurring && !e.isSubscription)
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   let currentDebts = debts.map(d => ({ ...d }));
@@ -80,7 +87,10 @@ export const calculatePayoffSchedule = (
       }
     });
 
-    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringExpenses - luxuryBudget - eventBudget + monthlyOverpayment;
+    const luxuryUsed = respectLuxuries ? luxuryBudget : 0;
+    const subsUsed = respectSubscriptions ? recurringSubs : 0;
+
+    let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + monthlyOverpayment;
     if (availableForDebt < 0) availableForDebt = 0;
 
     // 1. Mandatory Minimums
@@ -127,6 +137,7 @@ export const calculatePayoffSchedule = (
       for (const debt of targetDebts) {
         if (availableForDebt <= 0) break;
         const penalty = debt.overpaymentPenalty || 0;
+        if (avoidPenaltyOverpay && penalty > 0) continue;
         if (availableForDebt <= penalty) continue;
 
         const effectiveAvailable = availableForDebt - penalty;
@@ -161,8 +172,10 @@ export const calculatePayoffSchedule = (
       }
     }
 
-    monthData.savingsGoal = Math.max(0, availableForDebt * (savingsBuffer / 100));
+    monthData.savingsGoal = respectSavingsBuffer ? Math.max(0, availableForDebt * (savingsBuffer / 100)) : 0;
     monthData.remainingBalance = currentDebts.reduce((acc, d) => acc + d.balance, 0);
+    monthData.eventsBudgetUsed = eventBudget;
+    monthData.luxuryBudgetUsed = luxuryUsed;
 
     schedule.push(monthData);
     monthsCount++;

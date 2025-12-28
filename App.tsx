@@ -69,6 +69,8 @@ const EMPTY_PROFILE: UserFinancialProfile = {
   luxuryBudget: 0,
   savingsBuffer: 0,
   strategy: StrategyType.AVALANCHE,
+  debtPlan: undefined,
+  planProgress: {},
 };
 
 const App: React.FC = () => {
@@ -148,7 +150,13 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const schedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
+  const liveSchedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
+  const planSchedule = useMemo(() => {
+    if (profile.debtPlan && profile.debtPlan.schedule && profile.debtPlan.schedule.length > 0) {
+      return profile.debtPlan.schedule;
+    }
+    return liveSchedule;
+  }, [profile.debtPlan, liveSchedule]);
   const totalDebt = (profile.debts || []).reduce((acc, d) => acc + d.balance, 0);
   const totalLent = (profile.lentMoney || []).reduce((acc, l) => acc + l.remainingBalance, 0);
   const totalIncome = (profile.income || []).reduce((acc, i) => acc + i.amount, 0);
@@ -156,7 +164,7 @@ const App: React.FC = () => {
   const totalSubSpend = (profile.expenses || []).filter(e => e.isRecurring && e.isSubscription).reduce((acc, e) => acc + e.amount, 0);
   const totalDebtMins = (profile.debts || []).reduce((acc, d) => acc + d.minimumPayment, 0);
   const surplus = Math.max(0, totalIncome - totalBills - totalDebtMins - (profile.luxuryBudget || 0));
-  const freedomDate = schedule.length > 0 ? schedule[schedule.length - 1].monthName : 'N/A';
+  const freedomDate = planSchedule.length > 0 ? planSchedule[planSchedule.length - 1].monthName : 'N/A';
 
   const cardSpendData = useMemo(() => {
     const map: Record<string, { name: string; amount: number; color: string }> = {};
@@ -372,10 +380,10 @@ const App: React.FC = () => {
         
         <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
           <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<ChartBarIcon className="w-5 h-5" />} label="Dashboard" />
-          <NavItem active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<SparklesIcon className="w-5 h-5" />} label="Plan" />
+          <NavItem active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<SparklesIcon className="w-5 h-5" />} label="Plan Setup" />
           <NavItem active={activeTab === 'payment-tracker'} onClick={() => setActiveTab('payment-tracker')} icon={<ArrowPathRoundedSquareIcon className="w-5 h-5" />} label="Live Tracker" />
           <NavItem active={activeTab === 'spend-log'} onClick={() => setActiveTab('spend-log')} icon={<ClockIcon className="w-5 h-5" />} label="Spend Log" />
-          <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Future View" />
+          <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Debt Planning" />
           
           <div className="h-4" />
           <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Data Hub</p>
@@ -410,7 +418,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
         {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} />}
-        {activeTab === 'plan' && <PlanView profile={profile} setProfile={setProfile} schedule={schedule} />}
+        {activeTab === 'plan' && <PlanView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'spend-log' && (
@@ -425,7 +433,7 @@ const App: React.FC = () => {
             setExpandedReceiptId={setExpandedReceiptId} 
           />
         )}
-        {activeTab === 'planner' && <FutureView schedule={schedule} profile={profile} />}
+        {activeTab === 'planner' && <FutureView schedule={planSchedule} profile={profile} setProfile={setProfile} />}
         {activeTab === 'payment-tracker' && <PaymentTrackerView profile={profile} setProfile={setProfile} />}
         {activeTab === 'income' && <IncomeHubView profile={profile} setProfile={setProfile} />}
         {activeTab === 'money-lent' && <MoneyLentView profile={profile} setProfile={setProfile} />}

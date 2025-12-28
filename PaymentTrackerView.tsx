@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   CheckCircleIcon, 
   BanknotesIcon, 
@@ -16,17 +16,22 @@ interface PaymentTrackerViewProps {
 }
 
 export const PaymentTrackerView: React.FC<PaymentTrackerViewProps> = ({ profile, setProfile }) => {
-  // Local state for "checking off" items in the current view context
-  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const currentMonth = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const progress = profile.planProgress || {};
+  const currentProgress = progress[currentMonth] || { completedIds: [] };
+  const completedIds = new Set(currentProgress.completedIds || []);
 
   const toggleItem = (id: string) => {
-    const next = new Set(completedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setCompletedIds(next);
+    setProfile(p => {
+      const nextProgress = { ...(p.planProgress || {}) };
+      const month = nextProgress[currentMonth] || { completedIds: [] };
+      const next = new Set(month.completedIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      nextProgress[currentMonth] = { completedIds: Array.from(next) };
+      return { ...p, planProgress: nextProgress };
+    });
   };
-
-  const currentMonth = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   const trackerItems = [
     ...(profile.income || []).map(i => ({ id: i.id, label: i.source, amount: i.amount, type: 'Income', icon: <BanknotesIcon className="w-5 h-5 text-emerald-500" /> })),

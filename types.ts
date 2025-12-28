@@ -102,6 +102,29 @@ export interface Income {
   userId?: string;
 }
 
+export interface PlanProgressMonth {
+  completedIds: string[];
+}
+
+export interface DebtPlanPreferences {
+  protectLuxury: boolean;
+  protectSubscriptions: boolean;
+  avoidPenaltyOverpay: boolean;
+  keepSavingsBuffer: boolean;
+}
+
+export interface DebtPlanScenario {
+  mode: 'funds' | 'date';
+  extraMonthly?: number;
+  targetDate?: string;
+  userIntent?: string;
+  interpretedIntent?: string;
+  generatedAt: string;
+  requiredMonthly?: number | null;
+  preferences: DebtPlanPreferences;
+  schedule: PayoffMonth[];
+}
+
 export interface PayoffMonth {
   monthIndex: number;
   monthName: string;
@@ -147,6 +170,8 @@ export interface UserFinancialProfile {
   savingsBuffer: number;
   strategy: StrategyType;
   syncConfig?: SyncConfig;
+  debtPlan?: DebtPlanScenario;
+  planProgress?: Record<string, PlanProgressMonth>;
 }
 
 export interface ReceiptReviewItem {
