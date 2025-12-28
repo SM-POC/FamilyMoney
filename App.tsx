@@ -4,7 +4,6 @@ import {
   ChartBarIcon, 
   ArrowPathRoundedSquareIcon, 
   ClockIcon, 
-  MapIcon, 
   BanknotesIcon, 
   HomeIcon, 
   CreditCardIcon, 
@@ -42,8 +41,7 @@ import { DashboardView } from './DashboardView';
 import { OutgoingsHubView } from './OutgoingsHubView';
 import { DebtManagerView } from './DebtManagerView';
 import { SpendLogView } from './SpendLogView';
-import { FutureView } from './FutureView';
-import { PlanView } from './PlanView';
+import { CombinedPlanRoadmapView } from './CombinedPlanRoadmapView';
 import { CombinedPlanRoadmapView } from './CombinedPlanRoadmapView';
 import { PaymentTrackerView } from './PaymentTrackerView';
 import { IncomeHubView } from './IncomeHubView';
@@ -79,7 +77,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan-and-roadmap' | 'plan' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan-and-roadmap' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const profileRef = useRef<UserFinancialProfile>(EMPTY_PROFILE);
   const [receiptReview, setReceiptReview] = useState<ReceiptReviewState | null>(null);
@@ -407,7 +405,6 @@ const App: React.FC = () => {
           <NavItem active={activeTab === 'plan-and-roadmap'} onClick={() => setActiveTab('plan-and-roadmap')} icon={<SparklesIcon className="w-5 h-5" />} label="Plan + Roadmap" />
           <NavItem active={activeTab === 'payment-tracker'} onClick={() => setActiveTab('payment-tracker')} icon={<ArrowPathRoundedSquareIcon className="w-5 h-5" />} label="Live Tracker" />
           <NavItem active={activeTab === 'spend-log'} onClick={() => setActiveTab('spend-log')} icon={<ClockIcon className="w-5 h-5" />} label="Spend Log" />
-          <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Debt Planning" />
           
           <div className="h-4" />
           <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Data Hub</p>
@@ -442,10 +439,9 @@ const App: React.FC = () => {
 
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
         {activeTab === 'dashboard' && <DashboardView totalDebt={totalDebt} totalLent={totalLent} surplus={surplus} freedomDate={freedomDate} cardSpendData={cardSpendData} />}
-        {activeTab === 'plan' && <PlanView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
+        {activeTab === 'plan-and-roadmap' && <CombinedPlanRoadmapView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
-        {activeTab === 'plan-and-roadmap' && <CombinedPlanRoadmapView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
         {activeTab === 'spend-log' && (
           <SpendLogView 
             profile={profile} 
