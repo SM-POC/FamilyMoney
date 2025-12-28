@@ -44,6 +44,7 @@ import { DebtManagerView } from './DebtManagerView';
 import { SpendLogView } from './SpendLogView';
 import { FutureView } from './FutureView';
 import { PlanView } from './PlanView';
+import { CombinedDebtPlannerView } from './CombinedDebtPlannerView';
 import { PaymentTrackerView } from './PaymentTrackerView';
 import { IncomeHubView } from './IncomeHubView';
 import { MoneyLentView } from './MoneyLentView';
@@ -78,7 +79,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'plan' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'combined-debts' | 'plan' | 'payment-tracker' | 'spend-log' | 'income' | 'outgoings' | 'debts' | 'goals' | 'planner' | 'cards' | 'money-lent' | 'family-management' | 'settings'>('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
   const profileRef = useRef<UserFinancialProfile>(EMPTY_PROFILE);
   const [receiptReview, setReceiptReview] = useState<ReceiptReviewState | null>(null);
@@ -403,7 +404,7 @@ const App: React.FC = () => {
         
         <nav className="flex-1 space-y-1 overflow-y-auto pr-2">
           <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<ChartBarIcon className="w-5 h-5" />} label="Dashboard" />
-          <NavItem active={activeTab === 'plan'} onClick={() => setActiveTab('plan')} icon={<SparklesIcon className="w-5 h-5" />} label="Plan Setup" />
+          <NavItem active={activeTab === 'combined-debts'} onClick={() => setActiveTab('combined-debts')} icon={<SparklesIcon className="w-5 h-5" />} label="Debts & Plan" />
           <NavItem active={activeTab === 'payment-tracker'} onClick={() => setActiveTab('payment-tracker')} icon={<ArrowPathRoundedSquareIcon className="w-5 h-5" />} label="Live Tracker" />
           <NavItem active={activeTab === 'spend-log'} onClick={() => setActiveTab('spend-log')} icon={<ClockIcon className="w-5 h-5" />} label="Spend Log" />
           <NavItem active={activeTab === 'planner'} onClick={() => setActiveTab('planner')} icon={<MapIcon className="w-5 h-5" />} label="Debt Planning" />
@@ -412,7 +413,7 @@ const App: React.FC = () => {
           <p className="text-[9px] font-black text-slate-500 uppercase px-6 mb-2 tracking-[0.2em]">Data Hub</p>
           <NavItem active={activeTab === 'income'} onClick={() => setActiveTab('income')} icon={<BanknotesIcon className="w-5 h-5" />} label="Income" />
           <NavItem active={activeTab === 'outgoings'} onClick={() => setActiveTab('outgoings')} icon={<HomeIcon className="w-5 h-5" />} label="Bills & Subs" />
-          <NavItem active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} icon={<CreditCardIcon className="w-5 h-5" />} label="Debts" />
+          <NavItem active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} icon={<CreditCardIcon className="w-5 h-5" />} label="Debts (Legacy)" />
           <NavItem active={activeTab === 'money-lent'} onClick={() => setActiveTab('money-lent')} icon={<HandRaisedIcon className="w-5 h-5" />} label="Money Lent" />
           
           <div className="h-4" />
@@ -444,6 +445,7 @@ const App: React.FC = () => {
         {activeTab === 'plan' && <PlanView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
         {activeTab === 'outgoings' && <OutgoingsHubView profile={profile} setProfile={setProfile} totalSubSpend={totalSubSpend} />}
         {activeTab === 'debts' && <DebtManagerView profile={profile} setProfile={setProfile} />}
+        {activeTab === 'combined-debts' && <CombinedDebtPlannerView profile={profile} setProfile={setProfile} schedule={planSchedule} baseSchedule={liveSchedule} />}
         {activeTab === 'spend-log' && (
           <SpendLogView 
             profile={profile} 
