@@ -2,7 +2,7 @@
 CREATE TABLE users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    role TEXT CHECK (role IN ('Admin', 'Member')),
+    role TEXT,
     avatar_color TEXT,
     password TEXT NOT NULL
 );
@@ -12,7 +12,7 @@ CREATE TABLE profile_config (
     id TEXT PRIMARY KEY DEFAULT 'family_main',
     luxury_budget NUMERIC(15, 2) DEFAULT 0,
     savings_buffer NUMERIC(5, 2) DEFAULT 0,
-    strategy TEXT CHECK (strategy IN ('Avalanche (Save Interest)', 'Snowball (Smallest First)'))
+    strategy TEXT
 );
 
 -- Financial Liability Tracking
@@ -43,7 +43,7 @@ CREATE TABLE cards (
     name TEXT NOT NULL,
     last4 VARCHAR(4) NOT NULL,
     owner TEXT,
-    user_id TEXT REFERENCES users(id) ON DELETE SET NULL
+    user_id TEXT
 );
 
 -- Transaction & Obligation Tracking
@@ -56,11 +56,11 @@ CREATE TABLE expenses (
     date DATE,
     merchant TEXT,
     receipt_id TEXT,
-    card_id TEXT REFERENCES cards(id) ON DELETE SET NULL,
+    card_id TEXT,
     card_last4 VARCHAR(4),
     is_subscription BOOLEAN DEFAULT FALSE,
     contract_end_date DATE,
-    user_id TEXT REFERENCES users(id) ON DELETE CASCADE
+    user_id TEXT
 );
 
 -- Revenue Streams
@@ -68,7 +68,7 @@ CREATE TABLE income (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,
     amount NUMERIC(15, 2) NOT NULL,
-    user_id TEXT REFERENCES users(id) ON DELETE CASCADE
+    user_id TEXT
 );
 
 -- Future Planning
@@ -87,6 +87,6 @@ CREATE TABLE goals (
 CREATE TABLE special_events (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    month INTEGER CHECK (month >= 0 AND month <= 11),
+    month INTEGER,
     budget NUMERIC(15, 2) NOT NULL
 );
