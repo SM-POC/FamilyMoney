@@ -14,8 +14,8 @@ export const calculatePayoffSchedule = (
   profile: UserFinancialProfile,
   options: PayoffOptions = {}
 ): PayoffMonth[] => {
-  const { debts, income, expenses, specialEvents, luxuryBudget, savingsBuffer, strategy, lentMoney = [] } = profile;
-  const { monthlyOverpayment = 0, maxMonths = 360, respectLuxuries = true, respectSubscriptions = true, avoidPenaltyOverpay = false, respectSavingsBuffer = true } = options;
+  const { debts, income, expenses, specialEvents, luxuryBudget, strategy, lentMoney = [] } = profile;
+  const { monthlyOverpayment = 0, maxMonths = 360, respectLuxuries = true, respectSubscriptions = true, avoidPenaltyOverpay = false } = options;
   const extraPush = Math.max(0, monthlyOverpayment);
   
   if (debts.length === 0 && lentMoney.length === 0) return [];
@@ -97,7 +97,6 @@ export const calculatePayoffSchedule = (
 
     let availableForDebt = baseMonthlyIncome + repaymentIncome - recurringBills - subsUsed - luxuryUsed - eventBudget + extraPush;
     if (availableForDebt < 0) availableForDebt = 0;
-    let savingsReserve = 0;
     let minimumsPaid = 0;
 
     // 1. Mandatory Minimums
@@ -135,13 +134,7 @@ export const calculatePayoffSchedule = (
     });
 
     // Reserve savings AFTER minimums; never take from the explicit extra push
-    if (respectSavingsBuffer && availableForDebt > 0) {
-      const savingsPercent = Math.min(Math.max(savingsBuffer, 0), 100);
-      const reserveBase = Math.max(0, availableForDebt - extraPush);
-      savingsReserve = Math.max(0, reserveBase * (savingsPercent / 100));
-      if (savingsReserve > availableForDebt) savingsReserve = availableForDebt;
-      availableForDebt -= savingsReserve;
-    }
+    // No savings buffer: all remaining cash goes to overpayments
 
     // 2. Extra Payments
     if (availableForDebt > 0) {
@@ -190,8 +183,7 @@ export const calculatePayoffSchedule = (
       }
     }
 
-    const leftoverForSavings = respectSavingsBuffer ? Math.max(0, availableForDebt) : 0;
-    monthData.savingsGoal = savingsReserve + leftoverForSavings;
+    monthData.savingsGoal = 0;
     monthData.remainingBalance = currentDebts.reduce((acc, d) => acc + d.balance, 0);
     monthData.eventsBudgetUsed = eventBudget;
     monthData.luxuryBudgetUsed = luxuryUsed;
