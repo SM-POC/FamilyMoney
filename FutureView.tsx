@@ -62,9 +62,6 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   );
 
   const activeSchedule = useMemo(() => {
-    if (planScenario && planScenario.schedule && planScenario.schedule.length > 0) {
-      return planScenario.schedule;
-    }
     if (planScenario) {
       return calculatePayoffSchedule(profile, calcOptsFromPrefs(Math.max(0, planPush)));
     }

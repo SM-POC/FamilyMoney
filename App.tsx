@@ -179,7 +179,7 @@ const App: React.FC = () => {
       });
     }
     return liveSchedule;
-  }, [profile.debtPlan, profile]);
+  }, [profile.debtPlan, profile, liveSchedule]);
   const totalDebt = (profile.debts || []).reduce((acc, d) => acc + d.balance, 0);
   const totalLent = (profile.lentMoney || []).reduce((acc, l) => acc + l.remainingBalance, 0);
   const totalIncome = (profile.income || []).reduce((acc, i) => acc + i.amount, 0);
