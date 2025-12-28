@@ -37,6 +37,14 @@ export const PlanView: React.FC<PlanViewProps> = ({ profile, setProfile, schedul
   const [planSuccess, setPlanSuccess] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isInterpreting, setIsInterpreting] = useState(false);
+  const [lastOutput, setLastOutput] = useState<PayoffMonth[] | null>(existingPlan?.schedule ?? null);
+  const [lastPushUsed, setLastPushUsed] = useState<number | null>(
+    existingPlan
+      ? (existingPlan.mode === 'date'
+          ? (existingPlan.requiredMonthly ?? existingPlan.extraMonthly ?? 0)
+          : (existingPlan.extraMonthly ?? 0))
+      : null
+  );
 
   const totalDebt = useMemo(() => (profile.debts || []).reduce((acc, d) => acc + d.balance, 0), [profile.debts]);
   const totalIncome = useMemo(() => (profile.income || []).reduce((acc, i) => acc + i.amount, 0), [profile.income]);
@@ -181,6 +189,8 @@ export const PlanView: React.FC<PlanViewProps> = ({ profile, setProfile, schedul
           schedule: planSchedule
         }
       }));
+      setLastOutput(planSchedule);
+      setLastPushUsed(monthlyPush);
       setPlanSuccess('Debt plan generated and saved.');
     } catch (err: any) {
       setPlanError(err.message || 'Failed to generate plan.');
@@ -437,6 +447,30 @@ export const PlanView: React.FC<PlanViewProps> = ({ profile, setProfile, schedul
               {planSuccess && <p className="text-emerald-600 text-[10px] font-black uppercase tracking-widest">{planSuccess}</p>}
             </div>
           </div>
+
+          {lastOutput && lastOutput.length > 0 && (
+            <div className="p-6 rounded-3xl border border-slate-200 bg-white space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Last generation output</p>
+                  <p className="text-sm font-black text-slate-700">Push applied: {currency(lastPushUsed ?? 0)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Debt-free</p>
+                  <p className="text-lg font-black text-indigo-600">{lastOutput[lastOutput.length - 1]?.monthName || 'N/A'} ({lastOutput.length} months)</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {lastOutput.slice(0, 3).map((m, idx) => (
+                  <div key={idx} className="p-3 rounded-2xl border border-slate-100 bg-slate-50">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{m.monthName}</p>
+                    <p className="text-sm font-black text-slate-900">Pay {currency(m.totalPayment)}</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Interest {currency(m.interestPaid)} | Principal {currency(m.principalPaid)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
