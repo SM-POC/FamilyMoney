@@ -41,12 +41,35 @@ export const FutureView: React.FC<FutureViewProps> = ({ schedule, profile, setPr
   const subsUsed = preferences.protectSubscriptions ? recurringSubs : 0;
   const baseAvailable = Math.max(0, monthlyIncome + lentRepayments - recurringBills - subsUsed - luxuryUsed - eventThisMonth - debtMinimums);
 
-  const baseSchedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
+  const planPush = useMemo(() => {
+    if (!planScenario) return 0;
+    return planScenario.mode === 'date'
+      ? (planScenario.requiredMonthly ?? planScenario.extraMonthly ?? 0)
+      : (planScenario.extraMonthly ?? 0);
+  }, [planScenario]);
+
+  const calcOptsFromPrefs = (monthlyOverpayment: number) => ({
+    monthlyOverpayment,
+    respectLuxuries: preferences.protectLuxury,
+    respectSubscriptions: preferences.protectSubscriptions,
+    avoidPenaltyOverpay: preferences.avoidPenaltyOverpay,
+    respectSavingsBuffer: preferences.keepSavingsBuffer
+  });
+
+  const baseSchedule = useMemo(
+    () => calculatePayoffSchedule(profile, calcOptsFromPrefs(0)),
+    [profile, preferences.protectLuxury, preferences.protectSubscriptions, preferences.avoidPenaltyOverpay, preferences.keepSavingsBuffer]
+  );
 
   const activeSchedule = useMemo(() => {
-    if (planScenario?.schedule && planScenario.schedule.length > 0) return planScenario.schedule;
+    if (planScenario && planScenario.schedule && planScenario.schedule.length > 0) {
+      return planScenario.schedule;
+    }
+    if (planScenario) {
+      return calculatePayoffSchedule(profile, calcOptsFromPrefs(Math.max(0, planPush)));
+    }
     return schedule.length > 0 ? schedule : baseSchedule;
-  }, [planScenario, schedule, baseSchedule]);
+  }, [planScenario, planPush, profile, schedule, baseSchedule, preferences.protectLuxury, preferences.protectSubscriptions, preferences.avoidPenaltyOverpay, preferences.keepSavingsBuffer]);
 
   const summarise = (plan: PayoffMonth[]) => ({
     months: plan.length,

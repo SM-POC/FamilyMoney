@@ -164,11 +164,22 @@ const App: React.FC = () => {
 
   const liveSchedule = useMemo(() => calculatePayoffSchedule(profile), [profile]);
   const planSchedule = useMemo(() => {
-    if (profile.debtPlan && profile.debtPlan.schedule && profile.debtPlan.schedule.length > 0) {
-      return profile.debtPlan.schedule;
+    const plan = profile.debtPlan;
+    if (plan) {
+      const prefs = plan.preferences ?? { protectLuxury: true, protectSubscriptions: true, avoidPenaltyOverpay: true, keepSavingsBuffer: true };
+      const push = plan.mode === 'date'
+        ? (plan.requiredMonthly ?? plan.extraMonthly ?? 0)
+        : (plan.extraMonthly ?? 0);
+      return calculatePayoffSchedule(profile, {
+        monthlyOverpayment: Math.max(0, push),
+        respectLuxuries: prefs.protectLuxury,
+        respectSubscriptions: prefs.protectSubscriptions,
+        avoidPenaltyOverpay: prefs.avoidPenaltyOverpay,
+        respectSavingsBuffer: prefs.keepSavingsBuffer
+      });
     }
     return liveSchedule;
-  }, [profile.debtPlan, liveSchedule]);
+  }, [profile.debtPlan, profile]);
   const totalDebt = (profile.debts || []).reduce((acc, d) => acc + d.balance, 0);
   const totalLent = (profile.lentMoney || []).reduce((acc, l) => acc + l.remainingBalance, 0);
   const totalIncome = (profile.income || []).reduce((acc, i) => acc + i.amount, 0);

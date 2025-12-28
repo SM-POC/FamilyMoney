@@ -133,7 +133,9 @@ export const calculatePayoffSchedule = (
 
     // Reserve savings AFTER minimums so buffers don't eat the whole pot before debt service
     if (respectSavingsBuffer && availableForDebt > 0) {
-      savingsReserve = Math.max(0, availableForDebt * (savingsBuffer / 100));
+      const savingsPercent = Math.min(Math.max(savingsBuffer, 0), 100);
+      savingsReserve = Math.max(0, availableForDebt * (savingsPercent / 100));
+      if (savingsReserve > availableForDebt) savingsReserve = availableForDebt;
       availableForDebt -= savingsReserve;
     }
 
